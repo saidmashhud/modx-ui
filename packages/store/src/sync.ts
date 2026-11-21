@@ -13,6 +13,8 @@ import { emptyTables, patchOne, putOne, removeOne, type ID, type TablesOf } from
  *   local writes ──► pending queue (applied on top of base, so the UI sees them at once)
  *                ──► sent one by one; success folds the server's row into base, a 4xx drops the write (rollback),
  *                    a network error keeps it queued (offline) and retries with backoff
+ *                ──► every attempt carries `Idempotency-Key: <opId>`: a retry of a write the server already applied
+ *                    (its answer was lost) is answered from the server's record, never applied twice
  *   storage (optional) keeps base + seq + queue, so a reload starts from the last state and replays queued
  *   writes; undo / redo turn into ordinary writes.
  *
@@ -148,6 +150,37 @@ export interface SyncOptions<M> {
   tempId?: () => ID;
   /** Undo entries kept (0 = no history). Default 100. */
   undoLimit?: number;
+  /** Idempotency keys. Every write (create / update / remove / `call()`) is sent with `header: key(write)`: the same
+   * value on every retry of the same queued write — by default its `opId`, which is persisted with the queue, so it
+   * survives reloads — and a server that already applied the write (the answer was lost) answers from its record
+   * instead of applying it twice. Default `{ header: 'Idempotency-Key', key: (w) => w.opId }`; `false` sends none.
+   * Keys must be 1–128 printable ASCII characters (what modx-core accepts). */
+  idempotency?: false | IdempotencyOptions;
+  /** Ids of new writes (`opId`: the default idempotency key and the `client_id` apps echo). Must be unique per
+   * account across tabs and devices. Default: `op_<time>_<counter>_<random>`. */
+  opId?: () => string;
+}
+
+export interface IdempotencyOptions {
+  /** Header name (default `Idempotency-Key`). */
+  header?: string;
+  /** The key of a write; must be stable for that write (default: its `opId`). */
+  key?: (write: PendingWrite) => string;
+}
+
+export const IDEMPOTENCY_HEADER = 'Idempotency-Key';
+
+/** op_<time36>_<counter36>_<random>: unique across tabs (the random part) and ordered within one. */
+export function defaultOpId(counter: number): string {
+  const c = globalThis.crypto as Crypto | undefined;
+  let rand = '';
+  if (c?.getRandomValues) {
+    const b = c.getRandomValues(new Uint8Array(6));
+    for (const x of b) rand += x.toString(16).padStart(2, '0');
+  } else {
+    rand = Math.random().toString(36).slice(2, 14);
+  }
+  return `op_${Date.now().toString(36)}_${counter.toString(36)}_${rand}`;
 }
 
 export interface SyncState<M> {
@@ -496,7 +529,7 @@ export class SyncEngine<M> {
     /* a temporary id the server has already named: send (and show) the real one */
     const ids = this.state.idMap;
     const draft = Object.keys(ids).length ? mapIds(w, ids) : w;
-    const write: PendingWrite = { ...draft, opId: `op_${Date.now().toString(36)}_${(this.opCounter++).toString(36)}`, attempts: 0 };
+    const write: PendingWrite = { ...draft, opId: this.opts.opId ? this.opts.opId() : defaultOpId(this.opCounter++), attempts: 0 };
     this.dispatch({ type: 'enqueue', write });
     const limit = this.opts.undoLimit ?? 100;
     if (hist && limit > 0) {
@@ -555,6 +588,15 @@ export class SyncEngine<M> {
     }
   }
 
+  /** X-Client-Id and the write's idempotency key (the same on every attempt). */
+  private writeHeaders(w: PendingWrite): Record<string, string> | undefined {
+    const h: Record<string, string> = {};
+    if (this.opts.clientId) h['X-Client-Id'] = this.opts.clientId;
+    const idem = this.opts.idempotency;
+    if (idem !== false) h[idem?.header ?? IDEMPOTENCY_HEADER] = idem?.key ? idem.key(w) : w.opId;
+    return Object.keys(h).length ? h : undefined;
+  }
+
   /** Send queued writes in order, one at a time. */
   private kick(): void {
     if (!this.running || this.sending) return;
@@ -572,8 +614,7 @@ export class SyncEngine<M> {
     }
     this.sending = true;
     this.dispatch({ type: 'attempt', opId: w.opId });
-    const headers = this.opts.clientId ? { 'X-Client-Id': this.opts.clientId } : undefined;
-    this.opts.transport.request<unknown>(req.method, req.path, req.body, headers)
+    this.opts.transport.request<unknown>(req.method, req.path, req.body, this.writeHeaders(w))
       .then((res) => this.rowsFor(w, res))
       .then(
         (rows) => {

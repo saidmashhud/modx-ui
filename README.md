@@ -51,6 +51,9 @@ semantic layer; `applyTheme()` and typed `token` references are exported.
   - the base, `seq` and the queue survive reloads through a `SyncStorage` (`localStorageSync`,
     `memoryStorage`, or your own IndexedDB one), so offline edits are sent when the network returns;
   - `undo()` / `redo()` turn into ordinary writes;
+  - every write carries `Idempotency-Key: <opId>`, the same on each retry and after a reload, so a write
+    whose answer was lost is never applied twice by a server that keeps keys (modx-core `idem.h`);
+    the header name and key are configurable (`idempotency`, `opId`), or off;
   - for richer apps: `call()` (any endpoint, with optimistic `patches` / `puts`, settled by its `result`
     rows — one, an array, or `{ [entity]: rows }` — or a `refresh` list), `local` fields on updates
     (shown, not sent), endpoints that see the write and the current row, creates settled early by their

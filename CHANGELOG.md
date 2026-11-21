@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+`@modx/store` `SyncEngine`: idempotency keys.
+
+- Every write — create, update, remove and `call()` — is sent with `Idempotency-Key: <opId>`. The key is the
+  same on every retry of that queued write and survives reloads (the `opId` is persisted with the queue), so a
+  write the server applied but whose answer was lost (a network drop) is answered from the server's record on
+  retry instead of creating a duplicate row or applying a relative change twice. Servers that ignore the
+  header behave as before.
+- `idempotency: { header?, key?(write) }` changes the header name or derives another key; `idempotency: false`
+  sends none. `opId: () => string` replaces the id generator.
+- Default `opId`s are now `op_<time>_<counter>_<random>`: unique across tabs and devices of one account (the
+  previous `op_<time>_<counter>` could repeat between two tabs in the same millisecond), 1–128 printable ASCII.
+
 `@modx/store` `SyncEngine`: hooks for apps with more than plain collections (needed to run mod-x's workspace on it).
 
 - `call(spec)`: queue a request to any endpoint in order with the other writes, with optimistic `patches` and

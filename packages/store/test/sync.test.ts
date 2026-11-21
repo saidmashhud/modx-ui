@@ -14,6 +14,15 @@ class FakeServer implements Transport {
   offline = false;
   rejectNext: number | null = null;
   requests: string[] = [];
+  /** Headers of every write request, in order. */
+  writeHeaders: Record<string, string>[] = [];
+  /** Remembered answers by Idempotency-Key (what a modx-core server keeps). */
+  idem = new Map<string, unknown>();
+  honorKeys = true;
+  /** The next N writes are applied, but their answer is lost on the way back. */
+  loseAnswers = 0;
+  /** ...and the network stays down after that loss. */
+  offlineAfterLoss = false;
   private streams = new Set<Subject<StreamSignal>>();
   private n = 0;
 
@@ -33,6 +42,23 @@ class FakeServer implements Transport {
       this.rejectNext = null;
       throw new HttpError(status, 'bad_request', 'refused');
     }
+    if (method !== 'GET') {
+      this.writeHeaders.push({ ...(headers ?? {}) });
+      const key = headers?.['Idempotency-Key'];
+      if (key && this.honorKeys && this.idem.has(`${method} ${path} ${key}`)) return this.idem.get(`${method} ${path} ${key}`) as T;
+      const res = await this.apply<T>(method, path, body, headers);
+      if (key && this.honorKeys) this.idem.set(`${method} ${path} ${key}`, res);
+      if (this.loseAnswers > 0) {
+        this.loseAnswers--;
+        if (this.offlineAfterLoss) { this.offline = true; this.drop(); }
+        throw new HttpError(0, 'network', 'connection reset');
+      }
+      return res;
+    }
+    return this.apply<T>(method, path, body, headers);
+  }
+
+  private async apply<T>(method: string, path: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
     const cid = headers?.['X-Client-Id'];
     if (method === 'GET' && path === '/api/bootstrap') return { seq: this.seq, todos: [...this.rows.values()] } as T;
     if (method === 'GET' && path.startsWith('/api/changes')) {
@@ -536,5 +562,96 @@ describe('SyncEngine hooks', () => {
     e0.update('todos', 'a', { title: 'z' });
     expect(e0.canUndo).toBe(false);
     e0.stop();
+  });
+  it('idempotency: a create whose answer was lost is retried with the same key and applied once', async () => {
+    const srv = new FakeServer();
+    const e = engine(srv);
+    await e.start();
+    await until(() => e.state.status === 'live');
+    srv.loseAnswers = 1;
+    e.create('todos', { title: 'once', done: false });
+    await e.whenIdle();
+    expect([...srv.rows.values()].map((x) => x.title)).toEqual(['once']);
+    expect(Object.values(e.tables.todos).map((x) => x.title)).toEqual(['once']);
+    const posts = srv.writeHeaders;
+    expect(posts.length).toBe(2);
+    expect(posts[0]['Idempotency-Key']).toBeTruthy();
+    expect(posts[1]['Idempotency-Key']).toBe(posts[0]['Idempotency-Key']);
+    expect(posts[0]['X-Client-Id']).toBe('tab-1');
+    /* without keys (an old server) the same loss would have created two rows */
+    const srv2 = new FakeServer();
+    srv2.honorKeys = false;
+    const e2 = engine(srv2);
+    await e2.start();
+    await until(() => e2.state.status === 'live');
+    srv2.loseAnswers = 1;
+    e2.create('todos', { title: 'twice', done: false });
+    await e2.whenIdle();
+    expect(srv2.rows.size).toBe(2);
+    e.stop();
+    e2.stop();
+  });
+
+  it('idempotency: the key survives a reload; every write and call() gets its own', async () => {
+    const srv = new FakeServer();
+    const storage = memoryStorage<Model>();
+    const e = engine(srv, storage);
+    await e.start();
+    await until(() => e.state.status === 'live');
+    srv.loseAnswers = 1;
+    srv.offlineAfterLoss = true;
+    e.create('todos', { title: 'before reload', done: false });
+    await until(() => e.state.status === 'offline');
+    e.stop();
+    const key = srv.writeHeaders[0]['Idempotency-Key'];
+    expect(storage.value?.pending[0]?.opId).toBe(key); /* persisted with the queue */
+    const e2 = engine(srv, storage);
+    await e2.start();
+    srv.offline = false;
+    await e2.whenIdle();
+    expect(srv.writeHeaders.at(-1)!['Idempotency-Key']).toBe(key);
+    expect([...srv.rows.values()].map((x) => x.title)).toEqual(['before reload']);
+    await until(() => e2.state.status === 'live');
+    const id = Object.keys(e2.tables.todos)[0]!;
+    e2.update('todos', id, { done: true });
+    e2.call({ method: 'PUT', path: `/api/todos/${id}`, body: { title: 'called' } });
+    e2.remove('todos', id);
+    await e2.whenIdle();
+    const keys = srv.writeHeaders.map((h) => h['Idempotency-Key']);
+    expect(keys.every((k) => typeof k === 'string' && /^[\x20-\x7e]{1,128}$/.test(k))).toBe(true);
+    expect(new Set(keys.slice(-3)).size).toBe(3);
+    expect(keys.slice(-3)).not.toContain(key);
+    e2.stop();
+  });
+
+  it('idempotency: header name and key are configurable, or off', async () => {
+    const srv = new FakeServer();
+    let n = 0;
+    const custom = new SyncEngine<Model>({
+      transport: srv, collections: ['todos'], bootstrapPath: '/api/bootstrap', changesPath: (s) => `/api/changes?since=${s}`,
+      eventsPath: '/api/events', retryDelay: () => 5,
+      endpoints: { todos: { create: (row) => ({ method: 'POST', path: '/api/todos', body: row }) } },
+      opId: () => `my-${++n}`,
+      idempotency: { header: 'X-Request-Key', key: (w) => `k:${w.opId}` },
+    });
+    await custom.start();
+    await until(() => custom.state.status === 'live');
+    custom.create('todos', { title: 'a', done: false });
+    await custom.whenIdle();
+    expect(srv.writeHeaders[0]).toEqual({ 'X-Request-Key': 'k:my-1' });
+    expect(custom.state.pending.length).toBe(0);
+    custom.stop();
+    const off = new SyncEngine<Model>({
+      transport: srv, collections: ['todos'], bootstrapPath: '/api/bootstrap', changesPath: (s) => `/api/changes?since=${s}`,
+      eventsPath: '/api/events', retryDelay: () => 5,
+      endpoints: { todos: { create: (row) => ({ method: 'POST', path: '/api/todos', body: row }) } },
+      idempotency: false,
+    });
+    await off.start();
+    await until(() => off.state.status === 'live');
+    off.create('todos', { title: 'b', done: false });
+    await off.whenIdle();
+    expect(srv.writeHeaders[1]).toEqual({});
+    off.stop();
   });
 });
