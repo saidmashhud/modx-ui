@@ -1,0 +1,172 @@
+/* modx-ui design tokens: a neutral gray scale, one indigo accent, status colors, type, spacing, radii, shadows and motion, with dark and light themes (data-theme on the root element). */
+:root {
+  /* primitives */
+  --mx-gray-0: #ffffff;
+  --mx-gray-50: #f9f9f9;
+  --mx-gray-75: #f5f5f5;
+  --mx-gray-100: #eeeeee;
+  --mx-gray-200: #e0e0e0;
+  --mx-gray-300: #c4c4c6;
+  --mx-gray-400: #a3a3a3;
+  --mx-gray-500: #7d7e82;
+  --mx-gray-600: #5a5b5f;
+  --mx-gray-700: #3a3b3f;
+  --mx-gray-800: #2c2d30;
+  --mx-gray-850: #242527;
+  --mx-gray-900: #202123;
+  --mx-gray-950: #1d1e1f;
+  --mx-gray-1000: #161718;
+
+  --mx-indigo-100: #dad9ff;
+  --mx-indigo-200: #c0bfff;
+  --mx-indigo-400: #5b58ff;
+  --mx-indigo-500: #4743ff;
+  --mx-indigo-700: #2a27c3;
+
+  --mx-red-500: #f2555a;
+  --mx-orange-500: #f2994a;
+  --mx-yellow-500: #f2c94c;
+  --mx-green-500: #4cb782;
+  --mx-teal-500: #26b5ce;
+  --mx-violet-500: #a46bff;
+  --mx-blue-500: #4ea7fc;
+  --mx-pink-500: #f26ba5;
+
+  /* typography */
+  --mx-font-display: "Space Grotesk Variable", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --mx-font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --mx-font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --mx-text-xs: 0.6875rem;  /* 11 */
+  --mx-text-sm: 0.75rem;    /* 12 */
+  --mx-text-md: 0.8125rem;  /* 13 — app base */
+  --mx-text-base: 0.875rem; /* 14 — site body */
+  --mx-text-lg: 1rem;       /* 16 */
+  --mx-text-xl: 1.25rem;    /* 20 */
+  --mx-text-2xl: 1.5rem;    /* 24 */
+  --mx-text-3xl: 2rem;      /* 32 */
+  --mx-text-4xl: 3rem;      /* 48 */
+
+  /* Text inside form fields. 16px on touch: iOS zooms the page when a focused field's text is smaller. */
+  --mx-field-size: var(--mx-text-md);
+
+  --mx-leading-tight: 1.2;
+  --mx-leading-normal: 1.5;
+  --mx-tracking-tight: -0.03em; /* -1.5px @ 48px */
+  --mx-tracking-eyebrow: 0.08em;
+
+  --mx-weight-light: 300;
+  --mx-weight-regular: 400;
+  --mx-weight-medium: 500;
+  --mx-weight-semibold: 600;
+
+  /* spacing — 4px grid */
+  --mx-space-0: 0;
+  --mx-space-1: 0.25rem;
+  --mx-space-2: 0.5rem;
+  --mx-space-3: 0.75rem;
+  --mx-space-4: 1rem;
+  --mx-space-5: 1.25rem;
+  --mx-space-6: 1.5rem;
+  --mx-space-8: 2rem;
+  --mx-space-10: 2.5rem;
+  --mx-space-12: 3rem;
+
+  /* shape */
+  --mx-radius-sm: 3px;
+  --mx-radius-md: 4px;
+  --mx-radius-lg: 8px;
+  --mx-radius-xl: 12px;
+  --mx-radius-full: 999px;
+
+  /* motion */
+  --mx-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --mx-duration-fast: 90ms;
+  --mx-duration-base: 160ms;
+  --mx-duration-slow: 240ms;
+
+  /* control heights — one scale for every interactive control (outer, border included):
+     xs 24 static chips/tags · sm 28 dense toolbars, filter chips, nav rows · md 32 default buttons, inputs, selects,
+     segmented, date fields · lg 36 primary forms (auth, dialogs) · xl 48 marketing CTA */
+  --mx-control-xs: 24px;
+  --mx-control-sm: 28px;
+  --mx-control-md: 32px;
+  --mx-control-lg: 36px;
+  --mx-control-xl: 48px;
+
+  /* layout */
+  --mx-sidebar-width: 236px;
+  --mx-row-height: 36px;
+  --mx-header-height: 44px;
+  --mx-z-popover: 40;
+  --mx-z-dialog: 50;
+  --mx-z-toast: 60;
+
+  /* semantic — dark (default) */
+  color-scheme: dark;
+  --mx-bg: var(--mx-gray-950);
+  --mx-bg-sunken: var(--mx-gray-1000);
+  --mx-surface: var(--mx-gray-900);
+  --mx-surface-raised: var(--mx-gray-850);
+  --mx-surface-overlay: var(--mx-gray-800);
+  --mx-surface-hover: rgba(255, 255, 255, 0.045);
+  --mx-surface-active: rgba(255, 255, 255, 0.075);
+  --mx-surface-selected: rgba(71, 67, 255, 0.16);
+  --mx-border: rgba(255, 255, 255, 0.08);
+  --mx-border-strong: rgba(255, 255, 255, 0.14);
+  --mx-text: var(--mx-gray-50);
+  --mx-text-secondary: var(--mx-gray-300);
+  --mx-text-muted: var(--mx-gray-400);
+  --mx-text-faint: var(--mx-gray-500);
+  --mx-accent: var(--mx-indigo-500);
+  --mx-accent-hover: var(--mx-indigo-400);
+  --mx-accent-pressed: var(--mx-indigo-700);
+  --mx-accent-text: var(--mx-indigo-200);
+  --mx-on-accent: var(--mx-gray-0);
+  --mx-focus-ring: 0 0 0 2px var(--mx-bg), 0 0 0 4px var(--mx-indigo-400);
+  --mx-shadow-popover: 0 0 0 1px var(--mx-border-strong), 0 12px 32px rgba(0, 0, 0, 0.45);
+  --mx-shadow-dialog: 0 0 0 1px var(--mx-border-strong), 0 24px 64px rgba(0, 0, 0, 0.55);
+  --mx-backdrop: rgba(10, 10, 12, 0.6);
+  --mx-danger: var(--mx-red-500);
+  --mx-success: var(--mx-green-500);
+  --mx-warning: var(--mx-orange-500);
+}
+
+:root[data-theme="light"],
+[data-theme="light"] {
+  /* also scopes a single section (a page can alternate light and dark surfaces) */
+  color-scheme: light;
+  --mx-bg: var(--mx-gray-50);
+  --mx-bg-sunken: var(--mx-gray-100);
+  --mx-surface: var(--mx-gray-0);
+  --mx-surface-raised: var(--mx-gray-0);
+  --mx-surface-overlay: var(--mx-gray-0);
+  --mx-surface-hover: rgba(29, 30, 31, 0.04);
+  --mx-surface-active: rgba(29, 30, 31, 0.07);
+  --mx-surface-selected: rgba(71, 67, 255, 0.1);
+  --mx-border: var(--mx-gray-200);
+  --mx-border-strong: var(--mx-gray-300);
+  --mx-text: var(--mx-gray-950);
+  --mx-text-secondary: var(--mx-gray-700);
+  --mx-text-muted: var(--mx-gray-500);
+  --mx-text-faint: var(--mx-gray-400);
+  --mx-accent-text: var(--mx-indigo-700);
+  --mx-focus-ring: 0 0 0 2px var(--mx-bg), 0 0 0 4px var(--mx-indigo-500);
+  --mx-shadow-popover: 0 0 0 1px var(--mx-gray-200), 0 12px 32px rgba(29, 30, 31, 0.14);
+  --mx-shadow-dialog: 0 0 0 1px var(--mx-gray-200), 0 24px 64px rgba(29, 30, 31, 0.2);
+  --mx-backdrop: rgba(29, 30, 31, 0.35);
+}
+
+/* Touch: 44px targets (WCAG 2.5.5 / Apple HIG). */
+@media (pointer: coarse) {
+  :root { --mx-row-height: 44px; --mx-header-height: 52px; --mx-field-size: 16px;
+    --mx-control-sm: 32px; --mx-control-md: 36px; --mx-control-lg: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --mx-duration-fast: 0ms;
+    --mx-duration-base: 0ms;
+    --mx-duration-slow: 0ms;
+  }
+}

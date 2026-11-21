@@ -1,0 +1,124 @@
+import { css, html, nothing } from 'lit';
+import { base, define, MxElement } from './base.js';
+import './icons.js';
+
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+
+/**
+ * Button. The primary variant is the call to action: solid accent fill.
+ * Renders a native <button> inside the shadow root; form submission via `type="submit"` is forwarded.
+ */
+export class MxButton extends MxElement {
+  static properties = {
+    variant: { type: String, reflect: true },
+    size: { type: String, reflect: true },
+    icon: { type: String },
+    iconEnd: { type: String, attribute: 'icon-end' },
+    disabled: { type: Boolean, reflect: true },
+    loading: { type: Boolean, reflect: true },
+    type: { type: String },
+    label: { type: String },
+    pressed: { type: Boolean, reflect: true },
+  };
+  declare variant: ButtonVariant;
+  declare size: 'sm' | 'md' | 'lg';
+  declare icon: string;
+  declare iconEnd: string;
+  declare disabled: boolean;
+  declare loading: boolean;
+  declare type: 'button' | 'submit';
+  declare label: string;
+  declare pressed: boolean;
+
+  static shadowRootOptions = { ...MxElement.shadowRootOptions, delegatesFocus: true };
+
+  constructor() {
+    super();
+    this.variant = 'secondary';
+    this.size = 'md';
+    this.icon = '';
+    this.iconEnd = '';
+    this.disabled = false;
+    this.loading = false;
+    this.type = 'button';
+    this.label = '';
+    this.pressed = false;
+  }
+
+  static styles = [base, css`
+    :host { display: inline-flex; }
+    button {
+      display: inline-flex; align-items: center; justify-content: center; gap: var(--mx-space-2);
+      height: var(--mx-control-md); padding: 0 var(--mx-space-3); border-radius: var(--mx-radius-md);
+      border: 1px solid var(--mx-border-strong); background: var(--mx-surface-raised); color: var(--mx-text);
+      font-size: var(--mx-text-md); font-weight: var(--mx-weight-medium); letter-spacing: 0.005em; white-space: nowrap;
+      cursor: pointer; user-select: none; width: 100%;
+      transition: background-color var(--mx-duration-fast) var(--mx-ease-out), border-color var(--mx-duration-fast) var(--mx-ease-out), color var(--mx-duration-fast) var(--mx-ease-out);
+    }
+    button:hover { background: var(--mx-surface-overlay); }
+    button:active { background: var(--mx-surface-active); }
+    :host([pressed]) button { background: var(--mx-surface-active); color: var(--mx-text); }
+
+    :host([variant='primary']) button { background: var(--mx-accent); border-color: transparent; color: var(--mx-on-accent); }
+    :host([variant='primary']) button:hover { background: var(--mx-accent-hover); }
+    :host([variant='primary']) button:active { background: var(--mx-accent-pressed); }
+
+    :host([variant='ghost']) button { background: transparent; border-color: transparent; color: var(--mx-text-muted); }
+    :host([variant='ghost']) button:hover { background: var(--mx-surface-hover); color: var(--mx-text); }
+    :host([variant='ghost'][pressed]) button { background: var(--mx-surface-active); color: var(--mx-text); }
+
+    :host([variant='danger']) button { background: transparent; border-color: color-mix(in srgb, var(--mx-danger) 45%, transparent); color: var(--mx-danger); }
+    :host([variant='danger']) button:hover { background: color-mix(in srgb, var(--mx-danger) 12%, transparent); }
+
+    :host([size='sm']) button { height: var(--mx-control-sm); padding: 0 var(--mx-space-2); font-size: var(--mx-text-sm); gap: var(--mx-space-1); }
+    :host([size='lg']) button {
+      height: var(--mx-control-xl); padding: 0 var(--mx-space-8); font-size: var(--mx-text-lg); font-weight: var(--mx-weight-light);
+      text-transform: uppercase; letter-spacing: 0.02em; border-radius: var(--mx-radius-lg);
+    }
+    :host([icon-only]) button { padding: 0; width: var(--mx-control-md); }
+    :host([icon-only][size='sm']) button { width: var(--mx-control-sm); }
+    /* collapse: label hidden on phones (kept as the accessible name), icon-only look */
+    @media (max-width: 720px) {
+      :host([collapse]) button { padding: 0; width: var(--mx-control-md); }
+      :host([collapse][size='sm']) button { width: var(--mx-control-sm); }
+      :host([collapse]) slot { display: none; }
+    }
+
+    :host([disabled]) button, :host([loading]) button { opacity: 0.5; cursor: default; pointer-events: none; }
+    .spinner {
+      width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid currentColor; border-right-color: transparent;
+      animation: spin 700ms linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    ::slotted(mx-kbd) { margin-inline-start: var(--mx-space-1); }
+  `];
+
+  private onClick(e: MouseEvent) {
+    if (this.disabled || this.loading) {
+      e.stopImmediatePropagation();
+      return;
+    }
+    if (this.type === 'submit') this.closest('form')?.requestSubmit();
+  }
+
+  render() {
+    return html`<button
+      part="button"
+      type="button"
+      ?disabled=${this.disabled}
+      aria-busy=${this.loading ? 'true' : 'false'}
+      aria-pressed=${this.hasAttribute('pressed') || this.pressed ? 'true' : nothing}
+      aria-label=${this.label || nothing}
+      @click=${this.onClick}
+    >
+      ${this.loading ? html`<span class="spinner" aria-hidden="true"></span>` : this.icon ? html`<mx-icon name=${this.icon}></mx-icon>` : nothing}
+      <slot></slot>
+      ${this.iconEnd ? html`<mx-icon name=${this.iconEnd}></mx-icon>` : nothing}
+    </button>`;
+  }
+}
+define('mx-button', MxButton);
+
+declare global {
+  interface HTMLElementTagNameMap { 'mx-button': MxButton }
+}
