@@ -27,6 +27,14 @@ const fieldStyles = css`
 `;
 
 /* ───────────── mx-input ───────────── */
+/**
+ * Touch-only devices skip `autofocus`. On iOS a script focus outside a tap marks the field focused without
+ * attaching the keyboard, and tapping an already-focused field does not attach it either: the field looks
+ * active but swallows typing. The user taps the field they want instead.
+ */
+export const autofocusAllowed = (): boolean =>
+  typeof matchMedia === 'undefined' || !matchMedia('(hover: none) and (pointer: coarse)').matches;
+
 export class MxInput extends MxElement {
   static properties = {
     value: { type: String },
@@ -74,7 +82,7 @@ export class MxInput extends MxElement {
   static styles = [base, fieldStyles, css`:host { display: block; }`];
 
   firstUpdated() {
-    if (this.autofocus) requestAnimationFrame(() => this.focus());
+    if (this.autofocus && autofocusAllowed()) requestAnimationFrame(() => this.focus());
   }
 
   select() {
@@ -169,7 +177,7 @@ export class MxTextarea extends MxElement {
   }
 
   firstUpdated() {
-    if (this.autofocus) requestAnimationFrame(() => this.ta?.focus());
+    if (this.autofocus && autofocusAllowed()) requestAnimationFrame(() => this.ta?.focus());
   }
 
   updated() {

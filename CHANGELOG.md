@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- `mx-input` / `mx-textarea`: `autofocus` is skipped on touch-only devices. On iOS a script focus outside a tap left a field looking focused but ignoring typing (seen on the sign-in form).
 
 Phones and installed web apps (iOS standalone).
 
