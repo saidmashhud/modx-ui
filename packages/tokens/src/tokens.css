@@ -101,6 +101,15 @@
   --mx-z-popover: 40;
   --mx-z-dialog: 50;
   --mx-z-toast: 60;
+  /* Device edges: notch / Dynamic Island, home indicator, landscape side insets (needs viewport-fit=cover).
+     Use these instead of env() so a page can be laid out (and tested) with emulated insets. */
+  --mx-safe-top: env(safe-area-inset-top, 0px);
+  --mx-safe-right: env(safe-area-inset-right, 0px);
+  --mx-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --mx-safe-left: env(safe-area-inset-left, 0px);
+  /* On-screen keyboard: trackViewport() keeps these in step with the visual viewport. */
+  --mx-viewport-height: 100dvh;
+  --mx-keyboard-inset: 0px;
 
   /* semantic — dark (default) */
   color-scheme: dark;
