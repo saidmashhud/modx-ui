@@ -270,13 +270,14 @@ export class MxSegmented extends MxElement {
   static styles = [base, css`
     :host { display: inline-flex; max-width: 100%; min-width: 0; }
     .group { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--mx-radius-md); background: var(--mx-bg-sunken); border: 1px solid var(--mx-border);
-      box-sizing: border-box; height: var(--mx-control-md); max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+      box-sizing: border-box; height: var(--mx-control-md); max-width: 100%; overflow-x: auto; scrollbar-width: none; position: relative; }
     :host([size='sm']) .group { height: var(--mx-control-sm); }
     /* collapse: icon-only options on phones (label stays the accessible name) */
     @media (max-width: 720px) { :host([collapse]) .lbl { display: none; } }
     button {
       all: unset; display: inline-flex; align-items: center; gap: 6px; height: 100%; padding: 0 var(--mx-space-2); box-sizing: border-box;
       border-radius: var(--mx-radius-sm); color: var(--mx-text-muted); font-size: var(--mx-text-sm); cursor: pointer; white-space: nowrap;
+      flex: none; -webkit-tap-highlight-color: transparent;
     }
     button:hover { color: var(--mx-text); }
     button[aria-checked='true'] { background: var(--mx-surface-overlay); color: var(--mx-text); box-shadow: 0 0 0 1px var(--mx-border-strong); }
@@ -297,6 +298,17 @@ export class MxSegmented extends MxElement {
       this.updateComplete.then(() => (this.renderRoot.querySelector('[aria-checked="true"]') as HTMLElement | null)?.focus());
     }
   }
+  /** When the options don't fit (a scrolling strip on phones), keep the chosen one in view. */
+  protected updated(changed: Map<string, unknown>) {
+    if (!changed.has('value') && !changed.has('options')) return;
+    const g = this.renderRoot.querySelector<HTMLElement>('.group');
+    const b = g?.querySelector<HTMLElement>('[aria-checked="true"]');
+    if (!g || !b || g.scrollWidth <= g.clientWidth) return;
+    const pad = 16;
+    if (b.offsetLeft - pad < g.scrollLeft) g.scrollLeft = Math.max(0, b.offsetLeft - pad);
+    else if (b.offsetLeft + b.offsetWidth + pad > g.scrollLeft + g.clientWidth) g.scrollLeft = b.offsetLeft + b.offsetWidth + pad - g.clientWidth;
+  }
+
   render() {
     return html`<div class="group" role="radiogroup" aria-label=${this.label || nothing} @keydown=${this.onKey}>
       ${this.options.map((o) => html`<button role="radio" aria-checked=${o.value === this.value ? 'true' : 'false'}

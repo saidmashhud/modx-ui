@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+Phones and installed web apps (iOS standalone).
+
+- `@modx/tokens`: `--mx-safe-top|right|bottom|left` (the `env(safe-area-inset-*)` values with a 0 fallback). Kit
+  components use them instead of `env()`, so apps can lay out against them and tests can emulate a notch.
+- `@modx/tokens`: `trackViewport(root?, { threshold?, pinScroll? })` follows the on-screen keyboard through
+  `visualViewport` and keeps `--mx-viewport-height` / `--mx-keyboard-inset` and `data-keyboard` on the root (iOS does
+  not shrink `dvh` or fixed layouts when the keyboard opens). Ignores toolbar-sized changes and pinch zoom.
+- `mx-dialog` (full screen on phones): height follows `--mx-viewport-height`, so the footer stays above the keyboard;
+  the side insets are padded in landscape; the home-indicator gap is dropped while the keyboard is open.
+- `mx-popover` bottom sheets sit on top of the keyboard (`--mx-keyboard-inset`) and never grow under the status bar.
+- `mx-toast-region` on phones clears the home indicator and the keyboard.
+- `mx-button`: on touch screens the hit area grows to at least 44 × 44 px around `sm` / `md` buttons without
+  changing their look; no tap highlight or text selection on long press.
+- `mx-segmented`: when the options scroll (narrow screens), the selected one is scrolled into view; options no longer shrink.
+- `mx-nav-item`: 40 px rows on touch screens.
+- `mx-command-list`: 44 px options on touch screens; shortcut hints are hidden where there is no keyboard.
+- Fix: a full-screen `mx-dialog` on phones stayed 24 px low after opening (the slide-in offset outlived the
+  animation), so its footer was cut off at the bottom edge.
+
 `@modx/store` `SyncEngine`: idempotency keys.
 
 - Every write — create, update, remove and `call()` — is sent with `Idempotency-Key: <opId>`. The key is the

@@ -74,8 +74,9 @@ export class MxPopover extends MxElement {
     @starting-style { .pop:popover-open { opacity: 0; transform: translateY(-2px) scale(0.985); } }
     /* Phones: anchored menus become bottom sheets — reachable with a thumb, never clipped by the keyboard edge. */
     .pop.sheet {
-      inset: auto 0 0 0; width: 100%; max-width: none; min-width: 0; max-height: 78dvh;
-      border-radius: var(--mx-radius-xl) var(--mx-radius-xl) 0 0; padding-bottom: env(safe-area-inset-bottom);
+      inset: auto 0 var(--mx-keyboard-inset, 0px) 0; width: 100%; max-width: none; min-width: 0;
+      max-height: min(78dvh, calc(var(--mx-viewport-height, 100dvh) - var(--mx-safe-top, 0px) - 16px));
+      border-radius: var(--mx-radius-xl) var(--mx-radius-xl) 0 0; padding: 0 var(--mx-safe-right, 0px) max(0px, var(--mx-safe-bottom, 0px) - var(--mx-keyboard-inset, 0px)) var(--mx-safe-left, 0px); box-sizing: border-box;
       transform: translateY(16px); --mx-list-max-height: 56dvh;
     }
     .pop.sheet:popover-open { transform: none; }
@@ -230,6 +231,9 @@ export class MxCommandList extends MxElement {
     .check.on { background: var(--mx-accent); border-color: var(--mx-accent); }
     .tick { color: var(--mx-accent-text); }
     .kbd { display: inline-flex; gap: 2px; }
+    /* touch screens: 44 px rows, and no keyboard shortcuts to show */
+    @media (pointer: coarse) { li[role='option'] { height: var(--mx-control-lg); } }
+    @media (hover: none) { .kbd { display: none; } }
     .empty { padding: var(--mx-space-6) var(--mx-space-3); text-align: center; color: var(--mx-text-faint); font-size: var(--mx-text-md); }
   `];
 
@@ -407,14 +411,17 @@ export class MxDialog extends MxElement {
     dialog::backdrop { background: var(--mx-backdrop); backdrop-filter: blur(2px); }
     @media (max-width: 640px) {
       dialog, dialog[data-align='top'] {
-        width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 0; box-shadow: none;
-        transform: translateY(24px); padding-top: env(safe-area-inset-top);
+        width: 100vw; max-width: 100vw; height: var(--mx-viewport-height, 100dvh); max-height: var(--mx-viewport-height, 100dvh); margin: 0; border-radius: 0; box-shadow: none;
+        transform: translateY(24px); padding: var(--mx-safe-top, 0px) var(--mx-safe-right, 0px) 0 var(--mx-safe-left, 0px); box-sizing: border-box;
       }
+      /* the slide-in offset above must not outlive the opening animation (it used to: the sheet stayed 24 px low, footer cut off) */
+      dialog[open] { transform: none; }
       @starting-style { dialog[open] { opacity: 0; transform: translateY(24px); } }
       .body { flex: 1; }
       header { min-height: 52px; }
       .x { width: 36px; height: 36px; }
-      footer { padding-bottom: calc(var(--mx-space-3) + env(safe-area-inset-bottom)); }
+      /* home-indicator gap, dropped while the keyboard covers that edge */
+      footer { padding-bottom: calc(var(--mx-space-3) + max(0px, var(--mx-safe-bottom, 0px) - var(--mx-keyboard-inset, 0px))); }
     }
     header { display: flex; align-items: center; gap: var(--mx-space-2); padding: var(--mx-space-3) var(--mx-space-4); border-bottom: 1px solid var(--mx-border); }
     h2 { flex: 1; margin: 0; font: var(--mx-weight-medium) var(--mx-text-md) / 1.3 var(--mx-font-sans); color: var(--mx-text-secondary); }
@@ -549,7 +556,7 @@ export class MxToastRegion extends MxElement {
   }
   static styles = [base, css`
     :host { position: fixed; right: var(--mx-space-4); bottom: calc(var(--mx-space-4) + var(--mx-toast-offset, 0px)); z-index: var(--mx-z-toast); display: flex; flex-direction: column; gap: var(--mx-space-2); }
-    @media (max-width: 640px) { :host { left: var(--mx-space-3); right: var(--mx-space-3); bottom: calc(var(--mx-space-3) + var(--mx-toast-offset, 0px) + env(safe-area-inset-bottom)); } .toast { min-width: 0; max-width: none; } }
+    @media (max-width: 640px) { :host { left: var(--mx-space-3); right: var(--mx-space-3); bottom: calc(var(--mx-space-3) + var(--mx-toast-offset, 0px) + var(--mx-safe-bottom, 0px) + var(--mx-keyboard-inset, 0px)); } .toast { min-width: 0; max-width: none; } }
     .toast {
       display: flex; align-items: center; gap: var(--mx-space-3); min-width: 260px; max-width: 420px; padding: 10px var(--mx-space-3);
       background: var(--mx-surface-overlay); border-radius: var(--mx-radius-lg); box-shadow: var(--mx-shadow-popover);

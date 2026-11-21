@@ -52,7 +52,7 @@ export class MxButton extends MxElement {
       height: var(--mx-control-md); padding: 0 var(--mx-space-3); border-radius: var(--mx-radius-md);
       border: 1px solid var(--mx-border-strong); background: var(--mx-surface-raised); color: var(--mx-text);
       font-size: var(--mx-text-md); font-weight: var(--mx-weight-medium); letter-spacing: 0.005em; white-space: nowrap;
-      cursor: pointer; user-select: none; width: 100%;
+      cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; width: 100%; position: relative;
       transition: background-color var(--mx-duration-fast) var(--mx-ease-out), border-color var(--mx-duration-fast) var(--mx-ease-out), color var(--mx-duration-fast) var(--mx-ease-out);
     }
     button:hover { background: var(--mx-surface-overlay); }
@@ -82,6 +82,12 @@ export class MxButton extends MxElement {
       :host([collapse]) button { padding: 0; width: var(--mx-control-md); }
       :host([collapse][size='sm']) button { width: var(--mx-control-sm); }
       :host([collapse]) slot { display: none; }
+    }
+
+    /* Touch: the hit area grows to at least 44 × 44 px around small buttons without changing how they look. */
+    @media (pointer: coarse) {
+      button::after { content: ''; position: absolute; inset: min(0px, calc((var(--mx-control-md) - 44px) / 2)); }
+      :host([size='sm']) button::after { inset: min(0px, calc((var(--mx-control-sm) - 44px) / 2)); }
     }
 
     :host([disabled]) button, :host([loading]) button { opacity: 0.5; cursor: default; pointer-events: none; }

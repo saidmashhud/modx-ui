@@ -38,6 +38,8 @@ export class MxNavItem extends MxElement {
     a:hover { background: var(--mx-surface-hover); color: var(--mx-text); }
     :host([active]) a { background: var(--mx-surface-active); color: var(--mx-text); }
     a:focus-visible { outline: none; box-shadow: var(--mx-focus-ring); }
+    /* Touch: roomier rows (a drawer is tapped, not pointed at). */
+    @media (pointer: coarse) { a { height: 40px; -webkit-tap-highlight-color: transparent; } }
     .swatch { width: 14px; height: 14px; border-radius: var(--mx-radius-sm); display: inline-grid; place-items: center;
       font: 600 8px/1 var(--mx-font-sans); color: var(--mx-gray-0); }
     .label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
