@@ -50,7 +50,13 @@ semantic layer; `applyTheme()` and typed `token` references are exported.
   - temporary ids are replaced by the server's, also inside writes still queued;
   - the base, `seq` and the queue survive reloads through a `SyncStorage` (`localStorageSync`,
     `memoryStorage`, or your own IndexedDB one), so offline edits are sent when the network returns;
-  - `undo()` / `redo()` turn into ordinary writes.
+  - `undo()` / `redo()` turn into ordinary writes;
+  - for richer apps: `call()` (any endpoint, with optimistic `patches` / `puts`, settled by its `result`
+    rows — one, an array, or `{ [entity]: rows }` — or a `refresh` list), `local` fields on updates
+    (shown, not sent), endpoints that see the write and the current row, creates settled early by their
+    echo (`opId` as the change's `client_id`), `mapBootstrap`, `putRows` / `updateBase`, `events$` for
+    named SSE events, `changes$`, `bootstrapped$`, `probe` + `lost$` for access loss, `maxRetries`,
+    `saveDebounceMs`.
 - **Query** — `filterBy`, `sortBy` (multi-key, stable), `groupBy` (with a display order), `search` /
   `fuzzyScore`, `sortOrderBetween` for drag and drop.
 - **Router** — `createRouter({ item: '/lists/:list/items/:id' })` parses and formats; `UiRouter` exposes

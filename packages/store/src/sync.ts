@@ -15,25 +15,67 @@ import { emptyTables, patchOne, putOne, removeOne, type ID, type TablesOf } from
  *                    a network error keeps it queued (offline) and retries with backoff
  *   storage (optional) keeps base + seq + queue, so a reload starts from the last state and replays queued
  *   writes; undo / redo turn into ordinary writes.
+ *
+ * Hooks for apps with more than plain collections: `mapBootstrap` (bootstrap payload → tables), `events$` (named
+ * SSE events that are not changes), `changes$` (applied changes, for derived counters), `bootstrapped$`,
+ * `lost$` (access refused), `call()` (an arbitrary endpoint with an optimistic effect), `putRows` /
+ * `updateBase` (server rows fetched outside the feed).
  */
 
 export type SyncStatus = 'idle' | 'hydrated' | 'bootstrapping' | 'live' | 'reconnecting' | 'offline' | 'error';
+
+/** A request to an arbitrary endpoint, queued like any write, with an optimistic effect until it settles. */
+export interface CallSpec {
+  method: string;
+  path: string;
+  body?: unknown;
+  /** Patches shown on existing rows until the call settles. */
+  patches?: { entity: string; id: ID; data: Record<string, unknown> }[];
+  /** Rows shown until the call settles (e.g. a row the server will create). */
+  puts?: { entity: string; row: { id: ID } & Record<string, unknown> }[];
+  /** The response carries stored rows of this collection: one row, an array of rows, or `{ [result]: rows }`. */
+  result?: string;
+  /** After success, GET this list and store its rows (endpoints that answer without the rows). */
+  refresh?: { entity: string; path: string };
+}
 
 /** A local write waiting for the server. `id` may be a temporary id until the server answers a create. */
 export interface PendingWrite {
   opId: string;
   entity: string;
-  kind: 'create' | 'update' | 'remove';
+  kind: 'create' | 'update' | 'remove' | 'call';
   id: ID;
   data?: Record<string, unknown>;
+  /** update: fields shown optimistically but never sent (values the server derives, such as timestamps). */
+  local?: Record<string, unknown>;
+  /** call: the request and its optimistic effect. */
+  call?: CallSpec;
   attempts: number;
 }
 
-/** How a write reaches the server. The response of create / update should be the stored row. */
+export interface WriteContext {
+  /** The queued write (its `opId` can be sent along so the server echoes it as the change's `client_id`). */
+  write: PendingWrite;
+  /** The row as the UI sees it when the write is sent (base + pending) — or as last confirmed, when the pending
+   * write removes it from the view. */
+  current?: Record<string, unknown>;
+}
+
+export type WriteRequest = { method: string; path: string; body?: unknown };
+
+/** How a write reaches the server. The response of create / update should be the stored row. Returning nothing
+ * rejects the write. */
 export interface Endpoint {
-  create?: (row: Record<string, unknown>) => { method: string; path: string; body?: unknown };
-  update?: (id: ID, patch: Record<string, unknown>) => { method: string; path: string; body?: unknown };
-  remove?: (id: ID) => { method: string; path: string; body?: unknown };
+  create?: (row: Record<string, unknown>, ctx: WriteContext) => WriteRequest | null | undefined;
+  update?: (id: ID, patch: Record<string, unknown>, ctx: WriteContext) => WriteRequest | null | undefined;
+  remove?: (id: ID, ctx: WriteContext) => WriteRequest | null | undefined;
+}
+
+export interface WriteOptions {
+  /** update: fields shown optimistically but never sent. */
+  local?: Record<string, unknown>;
+  /** Record the write in the undo history (default true). */
+  history?: boolean;
 }
 
 export interface SyncSnapshot<M> {
@@ -80,18 +122,31 @@ export interface SyncOptions<M> {
   collections: readonly (keyof M & string)[];
   /** GET → `{ seq, <collection>: rows[] }`. */
   bootstrapPath: string;
-  /** GET → `Change[]`, or 410 when `since` is outside the server's window. */
+  /** GET → `Change[]` (or `{ changes: Change[] }`), or 410 when `since` is outside the server's window. */
   changesPath: (since: number) => string;
   /** SSE stream of changes. */
   eventsPath: string;
   endpoints: { [K in keyof M & string]?: Endpoint };
   storage?: SyncStorage<M>;
+  /** Coalesce storage writes: save at most once per this many ms (default 0: on every change). */
+  saveDebounceMs?: number;
   /** Sent as X-Client-Id with writes; changes carrying it are this client's own echoes. */
   clientId?: string;
   /** Delay before retry n (ms). Default: exponential backoff with jitter, capped at 15 s. */
   retryDelay?: (attempt: number) => number;
+  /** Retries of a write after server errors (5xx, 408, 429) before it is rejected. Network failures always keep
+   * it queued. Default: no limit. */
+  maxRetries?: number;
+  /** Turns the bootstrap payload into tables (default: one table per collection key). `prev` is the current
+   * base — keep what the payload does not carry (rows loaded on demand, for instance). */
+  mapBootstrap?: (data: Record<string, unknown> & { seq: number }, prev: TablesOf<M>) => TablesOf<M>;
+  /** Before reopening a dropped stream, GET the changes since seq. EventSource hides HTTP statuses, so this is how
+   * a lost session or membership shows: a 4xx answer stops the engine (status 'error', `lost$`) instead of
+   * reconnecting forever. */
+  probe?: boolean;
   /** Temporary ids for creates. */
   tempId?: () => ID;
+  /** Undo entries kept (0 = no history). Default 100. */
   undoLimit?: number;
 }
 
@@ -106,13 +161,16 @@ export interface SyncState<M> {
   redo: number;
 }
 
+type Settled = { entity: string; row: Record<string, unknown> & { id: ID } };
+
 type SyncAction<M> =
   | { type: 'status'; status: SyncStatus; error?: string | null }
   | { type: 'hydrate'; snap: SyncSnapshot<M> }
   | { type: 'bootstrapped'; seq: number; base: TablesOf<M> }
+  | { type: 'base'; base: TablesOf<M> }
   | { type: 'changes'; changes: Change[] }
   | { type: 'enqueue'; write: PendingWrite }
-  | { type: 'settled'; opId: string; row?: Record<string, unknown> | null }
+  | { type: 'settled'; opId: string; rows: Settled[] }
   | { type: 'rejected'; opId: string; error: string }
   | { type: 'attempt'; opId: string }
   | { type: 'history'; undo: number; redo: number };
@@ -123,16 +181,26 @@ export const backoffDelay = (attempt: number, base = 500, cap = 15_000) =>
 let tmpCounter = 0;
 const defaultTempId = () => `tmp_${Date.now().toString(36)}${(tmpCounter++).toString(36)}`;
 
-/** Replace every occurrence of a temporary id inside a value. */
-function swapId(v: unknown, from: ID, to: ID): unknown {
-  if (v === from) return to;
-  if (Array.isArray(v)) return v.map((x) => swapId(x, from, to));
-  if (v && typeof v === 'object') {
+const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+const isRow = (v: unknown): v is Settled['row'] => isObj(v) && typeof v.id === 'string';
+const toHttp = (e: unknown) => (e instanceof HttpError ? e : new HttpError(0, 'network', e instanceof Error ? e.message : String(e)));
+
+/** Replace every string found in `ids` (temporary → server id) inside a value. */
+function mapIds<T>(v: T, ids: Readonly<Record<ID, ID>>): T {
+  if (typeof v === 'string') return (ids[v] ?? v) as T;
+  if (Array.isArray(v)) return v.map((x) => mapIds(x, ids)) as T;
+  if (isObj(v)) {
     const o: Record<string, unknown> = {};
-    for (const [k, x] of Object.entries(v)) o[k] = swapId(x, from, to);
-    return o;
+    for (const [k, x] of Object.entries(v)) o[k] = mapIds(x, ids);
+    return o as T;
   }
   return v;
+}
+
+/** Rows a call's response carries for `entity`: a row, an array of rows, or `{ [entity]: rows }`. */
+export function rowsOf(res: unknown, entity: string): Settled[] {
+  const list = Array.isArray(res) ? res : isRow(res) ? [res] : isObj(res) && Array.isArray(res[entity]) ? res[entity] as unknown[] : [];
+  return list.filter(isRow).map((row) => ({ entity, row }));
 }
 
 /** Base tables with every pending write applied on top. */
@@ -140,20 +208,62 @@ export function applyPending<M>(base: TablesOf<M>, pending: readonly PendingWrit
   let t = base;
   for (const w of pending) {
     const name = w.entity as keyof M;
+    if (w.kind === 'call') {
+      for (const p of w.call?.puts ?? []) if (p.entity in t) t = putOne(t, p.entity as keyof M, p.row as M[keyof M]);
+      for (const p of w.call?.patches ?? []) if (p.entity in t) t = patchOne(t, p.entity as keyof M, p.id, p.data as Partial<M[keyof M]>);
+      continue;
+    }
     if (!(name in t)) continue;
     if (w.kind === 'create') t = putOne(t, name, { ...(w.data ?? {}), id: w.id } as M[keyof M]);
-    else if (w.kind === 'update') t = patchOne(t, name, w.id, (w.data ?? {}) as Partial<M[keyof M]>);
+    else if (w.kind === 'update') t = patchOne(t, name, w.id, { ...(w.data ?? {}), ...(w.local ?? {}) } as Partial<M[keyof M]>);
     else t = removeOne(t, name, w.id);
   }
   return t;
 }
 
+/** A stored snapshot in the expected shape, or null when it is not one. A snapshot without one of the collections
+ * (written by an older client, say) is not one either: catch-up only brings changes, never that table's rows. */
+export function normalizeSnapshot<M>(raw: unknown, collections: readonly (keyof M)[]): SyncSnapshot<M> | null {
+  if (!isObj(raw) || !isObj(raw.base) || typeof raw.seq !== 'number' || !Number.isFinite(raw.seq) || raw.seq < 0) return null;
+  const src = raw.base;
+  if (!collections.every((c) => isObj(src[c as string]))) return null;
+  const base = {} as Record<keyof M, unknown>;
+  for (const c of collections) base[c] = src[c as string];
+  const pending = (Array.isArray(raw.pending) ? raw.pending : []).filter((w): w is PendingWrite =>
+    isObj(w) && typeof w.opId === 'string' && typeof w.entity === 'string' && typeof w.id === 'string'
+    && (w.kind === 'create' || w.kind === 'update' || w.kind === 'remove' || (w.kind === 'call' && isObj(w.call))))
+    .map((w) => ({ ...w, attempts: typeof w.attempts === 'number' ? w.attempts : 0 }));
+  const idMap: Record<ID, ID> = {};
+  if (isObj(raw.idMap)) for (const [k, v] of Object.entries(raw.idMap)) if (typeof v === 'string') idMap[k] = v;
+  return { seq: raw.seq, base: base as TablesOf<M>, pending, idMap };
+}
+
+/** Drop a settled write, fold the server's rows into base, and follow a created row's new id. */
+function settle<M>(s: SyncState<M>, w: PendingWrite, rows: readonly Settled[], createdId?: ID): SyncState<M> {
+  let pending = s.pending.filter((x) => x.opId !== w.opId);
+  let base = s.base;
+  let idMap = s.idMap;
+  if (w.kind === 'remove' && w.entity in base) base = removeOne(base, w.entity as keyof M, w.id);
+  for (const r of rows) if (r.entity in base) base = putOne(base, r.entity as keyof M, r.row as M[keyof M]);
+  const real = createdId ?? (w.kind === 'create' ? rows.find((r) => r.entity === w.entity)?.row.id : undefined);
+  if (w.kind === 'create' && real && real !== w.id) {
+    /* the server named the row: later writes and references follow */
+    idMap = { ...idMap, [w.id]: real };
+    const one = { [w.id]: real };
+    pending = pending.map((x) => ({ ...x, id: x.id === w.id ? real : x.id, data: mapIds(x.data, one), local: mapIds(x.local, one), call: mapIds(x.call, one) }));
+  }
+  return { ...s, pending, base, idMap };
+}
+
 function reducerFor<M>(collections: readonly (keyof M)[]) {
   return createReducer<SyncState<M>, SyncAction<M>>({
     status: (s, a) => ({ ...s, status: a.status, error: a.error === undefined ? s.error : a.error }),
-    hydrate: (s, a) => ({ ...s, status: 'hydrated', seq: a.snap.seq, base: a.snap.base, pending: a.snap.pending, idMap: a.snap.idMap }),
+    /* writes queued before the snapshot was read stay queued after it */
+    hydrate: (s, a) => ({ ...s, status: 'hydrated', seq: a.snap.seq, base: a.snap.base, pending: [...a.snap.pending, ...s.pending], idMap: { ...a.snap.idMap, ...s.idMap } }),
     bootstrapped: (s, a) => ({ ...s, seq: a.seq, base: a.base }),
+    base: (s, a) => (a.base === s.base ? s : { ...s, base: a.base }),
     changes: (s, a) => {
+      let st = s;
       let base = s.base, seq = s.seq;
       for (const c of a.changes) {
         if (c.seq <= seq) continue; /* catch-up and live stream overlap */
@@ -161,28 +271,22 @@ function reducerFor<M>(collections: readonly (keyof M)[]) {
         const name = c.entity as keyof M;
         if (!collections.includes(name)) continue;
         base = c.op === 'del' || !c.data ? removeOne(base, name, c.id) : putOne(base, name, c.data as M[keyof M]);
+        /* our own create echoed (its opId as client_id) before the HTTP answer: settle it now, or both rows show */
+        if (c.client_id && c.op === 'put') {
+          const w = st.pending.find((x) => x.opId === c.client_id && x.kind === 'create' && x.entity === c.entity);
+          if (w) {
+            st = settle({ ...st, base }, w, [], c.id);
+            base = st.base;
+          }
+        }
       }
-      return base === s.base && seq === s.seq ? s : { ...s, base, seq };
+      return base === s.base && seq === s.seq && st === s ? s : { ...st, base, seq };
     },
     enqueue: (s, a) => ({ ...s, pending: [...s.pending, a.write] }),
     attempt: (s, a) => ({ ...s, pending: s.pending.map((w) => (w.opId === a.opId ? { ...w, attempts: w.attempts + 1 } : w)) }),
     settled: (s, a) => {
       const w = s.pending.find((x) => x.opId === a.opId);
-      if (!w) return s;
-      let pending = s.pending.filter((x) => x.opId !== a.opId);
-      let base = s.base;
-      let idMap = s.idMap;
-      const name = w.entity as keyof M;
-      const row = a.row && typeof a.row === 'object' && typeof (a.row as { id?: unknown }).id === 'string' ? a.row : null;
-      if (w.kind === 'remove') base = removeOne(base, name, w.id);
-      else if (row) base = putOne(base, name, row as M[keyof M]);
-      if (w.kind === 'create' && row && row.id !== w.id) {
-        /* the server named the row: later writes and references follow */
-        const real = row.id as ID;
-        idMap = { ...idMap, [w.id]: real };
-        pending = pending.map((x) => ({ ...x, id: x.id === w.id ? real : x.id, data: swapId(x.data, w.id, real) as Record<string, unknown> | undefined }));
-      }
-      return { ...s, pending, base, idMap };
+      return w ? settle(s, w, a.rows) : s;
     },
     rejected: (s, a) => {
       const w = s.pending.find((x) => x.opId === a.opId);
@@ -196,7 +300,10 @@ function reducerFor<M>(collections: readonly (keyof M)[]) {
   });
 }
 
-interface HistoryEntry { entity: string; undo: Omit<PendingWrite, 'opId' | 'attempts'>; redo: Omit<PendingWrite, 'opId' | 'attempts'> }
+type Draft = Omit<PendingWrite, 'opId' | 'attempts'>;
+interface HistoryEntry { entity: string; undo: Draft; redo: Draft }
+
+const browserOffline = () => typeof navigator !== 'undefined' && navigator.onLine === false;
 
 export class SyncEngine<M> {
   readonly store: Store<SyncState<M>, SyncAction<M> & Action>;
@@ -205,20 +312,43 @@ export class SyncEngine<M> {
   readonly status$: Observable<SyncStatus>;
   /** Writes the server refused (they were rolled back). */
   readonly rejected$ = new Subject<{ write: PendingWrite; error: HttpError }>();
+  /** Named SSE events that are not changes (typing, presence...). */
+  readonly events$ = new Subject<{ event: string; data: unknown }>();
+  /** Changes applied to base (only new ones, in order), with the base as it was before them. */
+  readonly changes$ = new Subject<{ changes: readonly Change[]; before: TablesOf<M> }>();
+  /** Every bootstrap payload, after its tables replaced base. */
+  readonly bootstrapped$ = new Subject<Record<string, unknown> & { seq: number }>();
+  /** The server refused us (4xx on bootstrap or on the reconnect probe): the engine has stopped. Emitted before
+   * the status turns to 'error'. */
+  readonly lost$ = new Subject<HttpError>();
   private readonly opts: SyncOptions<M>;
   private readonly view: (s: SyncState<M>) => TablesOf<M>;
   private stream?: Subscription;
   private running = false;
   private sending = false;
+  private streamLive = false;
+  private booting: Promise<void> | null = null;
   private retryTimer?: ReturnType<typeof setTimeout>;
   private streamTimer?: ReturnType<typeof setTimeout>;
+  private saveTimer?: ReturnType<typeof setTimeout>;
+  private saveNow?: () => void;
   private streamAttempt = 0;
   private sendAttempt = 0;
   private opCounter = 0;
+  private serverFailures = new Map<string, number>();
   private undoStack: HistoryEntry[] = [];
   private redoStack: HistoryEntry[] = [];
   private idle: (() => void)[] = [];
   private saveSub?: Subscription;
+  private readonly onOffline = () => { if (this.running) this.dispatch({ type: 'status', status: 'offline' }); };
+  private readonly onOnline = () => {
+    if (!this.running) return;
+    if (this.streamLive) { this.dispatch({ type: 'status', status: 'live', error: null }); this.kick(); return; }
+    /* the network is back: don't wait for the backoff */
+    clearTimeout(this.streamTimer);
+    this.streamAttempt = 0;
+    this.reopen();
+  };
 
   constructor(opts: SyncOptions<M>) {
     this.opts = opts;
@@ -238,51 +368,85 @@ export class SyncEngine<M> {
     return this.tables$.pipe(map(fn), distinctUntilChanged());
   }
 
-  /** Hydrate from storage (if any), then bootstrap or catch up, then stay live. */
+  /** Hydrate from storage (if any), then bootstrap or catch up, then stay live. A snapshot in an unexpected shape
+   * is ignored (fresh bootstrap). */
   async start(): Promise<void> {
     if (this.running) return;
     this.running = true;
-    const snap = this.opts.storage ? await this.opts.storage.load() : null;
-    if (snap && snap.base) this.dispatch({ type: 'hydrate', snap });
-    if (this.opts.storage) {
-      const storage = this.opts.storage;
-      this.saveSub = this.store.select((s) => [s.seq, s.base, s.pending, s.idMap] as const, (a, b) => a.every((x, i) => x === b[i]))
-        .subscribe(([seq, base, pending, idMap]) => { void storage.save({ seq, base, pending: [...pending], idMap }); });
-    }
+    let raw: unknown = null;
+    try { raw = this.opts.storage ? await this.opts.storage.load() : null; } catch { raw = null; }
+    if (!this.running) return;
+    const snap = normalizeSnapshot<M>(raw, this.opts.collections);
+    if (snap) this.dispatch({ type: 'hydrate', snap });
+    if (this.opts.storage) this.persist(this.opts.storage);
+    globalThis.addEventListener?.('offline', this.onOffline);
+    globalThis.addEventListener?.('online', this.onOnline);
     if (!snap) await this.bootstrap();
     this.openStream();
     this.kick();
   }
 
   stop(): void {
-    this.running = false;
-    this.stream?.unsubscribe();
+    this.halt();
     this.saveSub?.unsubscribe();
-    clearTimeout(this.retryTimer);
-    clearTimeout(this.streamTimer);
+    if (this.saveTimer !== undefined) { clearTimeout(this.saveTimer); this.saveTimer = undefined; this.saveNow?.(); }
+  }
+
+  /** Current server id for an id that may have been temporary. */
+  resolveId(id: ID): ID {
+    let cur = id;
+    for (let i = 0; i < 8 && this.state.idMap[cur]; i++) cur = this.state.idMap[cur]!;
+    return cur;
   }
 
   /* ───────── writes ───────── */
 
-  create<K extends keyof M & string>(entity: K, row: Partial<M[K]>): ID {
+  create<K extends keyof M & string>(entity: K, row: Partial<M[K]>, opts: WriteOptions = {}): ID {
     const id = (row as { id?: ID }).id ?? (this.opts.tempId ?? defaultTempId)();
     const data = { ...(row as Record<string, unknown>), id };
-    this.enqueue({ entity, kind: 'create', id, data }, { entity, undo: { entity, kind: 'remove', id }, redo: { entity, kind: 'create', id, data } });
+    this.enqueue({ entity, kind: 'create', id, data }, opts.history === false ? undefined
+      : { entity, undo: { entity, kind: 'remove', id }, redo: { entity, kind: 'create', id, data } });
     return id;
   }
 
-  update<K extends keyof M & string>(entity: K, id: ID, patch: Partial<M[K]>): void {
-    const cur = this.tables[entity][id] as Record<string, unknown> | undefined;
+  update<K extends keyof M & string>(entity: K, id: ID, patch: Partial<M[K]>, opts: WriteOptions = {}): void {
+    const rid = this.resolveId(id);
+    const cur = this.tables[entity][rid] as Record<string, unknown> | undefined;
     const before: Record<string, unknown> = {};
     for (const k of Object.keys(patch)) before[k] = cur ? cur[k] : undefined;
     const data = patch as Record<string, unknown>;
-    this.enqueue({ entity, kind: 'update', id, data }, { entity, undo: { entity, kind: 'update', id, data: before }, redo: { entity, kind: 'update', id, data } });
+    this.enqueue({ entity, kind: 'update', id: rid, data, ...(opts.local ? { local: opts.local } : {}) }, opts.history === false ? undefined
+      : { entity, undo: { entity, kind: 'update', id: rid, data: before }, redo: { entity, kind: 'update', id: rid, data } });
   }
 
-  remove<K extends keyof M & string>(entity: K, id: ID): void {
-    const cur = this.tables[entity][id] as Record<string, unknown> | undefined;
+  remove<K extends keyof M & string>(entity: K, id: ID, opts: WriteOptions = {}): void {
+    const rid = this.resolveId(id);
+    const cur = this.tables[entity][rid] as Record<string, unknown> | undefined;
     const restore = cur ? { ...cur } : undefined;
-    this.enqueue({ entity, kind: 'remove', id }, restore ? { entity, undo: { entity, kind: 'create', id, data: restore }, redo: { entity, kind: 'remove', id } } : undefined);
+    this.enqueue({ entity, kind: 'remove', id: rid }, restore && opts.history !== false
+      ? { entity, undo: { entity, kind: 'create', id: rid, data: restore }, redo: { entity, kind: 'remove', id: rid } } : undefined);
+  }
+
+  /** Queue a request to any endpoint (in order with the other writes), showing `patches` / `puts` until it settles.
+   * Not recorded for undo. */
+  call(spec: CallSpec): string {
+    const first = spec.patches?.[0] ?? spec.puts?.[0];
+    const entity = spec.result ?? spec.refresh?.entity ?? first?.entity ?? '';
+    const id = spec.patches?.[0]?.id ?? spec.puts?.[0]?.row.id ?? '';
+    return this.enqueue({ entity, kind: 'call', id, call: spec });
+  }
+
+  /** Store server rows fetched outside bootstrap and the feed (lazy detail, paging, uploads). */
+  putRows<K extends keyof M & string>(entity: K, rows: readonly M[K][]): void {
+    let base = this.state.base;
+    if (!(entity in base)) return;
+    for (const r of rows) if (isRow(r)) base = putOne(base, entity, r);
+    this.dispatch({ type: 'base', base });
+  }
+
+  /** Replace base with `fn(base)` (e.g. a listing that replaces every row of a scope). */
+  updateBase(fn: (base: TablesOf<M>) => TablesOf<M>): void {
+    this.dispatch({ type: 'base', base: fn(this.state.base) });
   }
 
   get canUndo(): boolean { return this.undoStack.length > 0; }
@@ -319,28 +483,76 @@ export class SyncEngine<M> {
     this.store.dispatch(a as SyncAction<M> & Action);
   }
 
-  private resolve(w: Omit<PendingWrite, 'opId' | 'attempts'>): Omit<PendingWrite, 'opId' | 'attempts'> {
-    const real = this.state.idMap[w.id];
-    return real ? { ...w, id: real } : w;
+  private resolve(w: Draft): Draft {
+    const real = this.resolveId(w.id);
+    return real !== w.id ? { ...w, id: real } : w;
   }
 
   private history() {
     this.dispatch({ type: 'history', undo: this.undoStack.length, redo: this.redoStack.length });
   }
 
-  private enqueue(w: Omit<PendingWrite, 'opId' | 'attempts'>, hist?: HistoryEntry) {
-    const write: PendingWrite = { ...w, opId: `op_${Date.now().toString(36)}_${(this.opCounter++).toString(36)}`, attempts: 0 };
+  private enqueue(w: Draft, hist?: HistoryEntry): string {
+    /* a temporary id the server has already named: send (and show) the real one */
+    const ids = this.state.idMap;
+    const draft = Object.keys(ids).length ? mapIds(w, ids) : w;
+    const write: PendingWrite = { ...draft, opId: `op_${Date.now().toString(36)}_${(this.opCounter++).toString(36)}`, attempts: 0 };
     this.dispatch({ type: 'enqueue', write });
-    if (hist) {
-      this.undoStack = [...this.undoStack.slice(-((this.opts.undoLimit ?? 100) - 1)), hist];
+    const limit = this.opts.undoLimit ?? 100;
+    if (hist && limit > 0) {
+      this.undoStack = [...this.undoStack.slice(-(limit - 1)), hist];
       this.redoStack = [];
       this.history();
     }
     this.kick();
+    return write.opId;
+  }
+
+  private persist(storage: SyncStorage<M>) {
+    const save = () => {
+      this.saveTimer = undefined;
+      const s = this.state;
+      try {
+        const r = storage.save({ seq: s.seq, base: s.base, pending: [...s.pending], idMap: s.idMap });
+        if (r && typeof (r as Promise<void>).catch === 'function') (r as Promise<void>).catch(() => {});
+      } catch { /* storage is a convenience */ }
+    };
+    this.saveNow = save;
+    const wait = this.opts.saveDebounceMs ?? 0;
+    this.saveSub = this.store.select((s) => [s.seq, s.base, s.pending, s.idMap] as const, (a, b) => a.every((x, i) => x === b[i]))
+      .subscribe(() => {
+        if (wait <= 0) return save();
+        clearTimeout(this.saveTimer);
+        this.saveTimer = setTimeout(save, wait);
+      });
   }
 
   private delay(n: number) {
     return (this.opts.retryDelay ?? backoffDelay)(n);
+  }
+
+  private request(w: PendingWrite): WriteRequest | null | undefined {
+    if (w.kind === 'call') return w.call;
+    const ep = this.opts.endpoints[w.entity as keyof M & string];
+    const pick = (t: TablesOf<M>) => (t as Record<string, Record<ID, unknown> | undefined>)[w.entity]?.[w.id] as Record<string, unknown> | undefined;
+    const current = pick(this.tables) ?? pick(this.state.base);
+    const ctx: WriteContext = { write: w, current };
+    return w.kind === 'create' ? ep?.create?.(w.data ?? {}, ctx) : w.kind === 'update' ? ep?.update?.(w.id, w.data ?? {}, ctx) : ep?.remove?.(w.id, ctx);
+  }
+
+  /** Rows a successful write settles with. */
+  private async rowsFor(w: PendingWrite, res: unknown): Promise<Settled[]> {
+    if (w.kind === 'remove') return [];
+    if (w.kind !== 'call') return isRow(res) ? [{ entity: w.entity, row: res }] : [];
+    const c = w.call!;
+    const rows = c.result ? rowsOf(res, c.result) : [];
+    if (!c.refresh) return rows;
+    try {
+      const list = await this.opts.transport.request<unknown>('GET', c.refresh.path);
+      return [...rows, ...rowsOf(list, c.refresh.entity)];
+    } catch {
+      return rows; /* the change feed brings them anyway */
+    }
   }
 
   /** Send queued writes in order, one at a time. */
@@ -353,8 +565,7 @@ export class SyncEngine<M> {
       idle.forEach((f) => f());
       return;
     }
-    const ep = this.opts.endpoints[w.entity as keyof M & string];
-    const req = w.kind === 'create' ? ep?.create?.(w.data ?? {}) : w.kind === 'update' ? ep?.update?.(w.id, w.data ?? {}) : ep?.remove?.(w.id);
+    const req = this.request(w);
     if (!req) {
       this.dispatch({ type: 'rejected', opId: w.opId, error: `no ${w.kind} endpoint for ${w.entity}` });
       return this.kick();
@@ -362,59 +573,90 @@ export class SyncEngine<M> {
     this.sending = true;
     this.dispatch({ type: 'attempt', opId: w.opId });
     const headers = this.opts.clientId ? { 'X-Client-Id': this.opts.clientId } : undefined;
-    this.opts.transport.request<Record<string, unknown> | null>(req.method, req.path, req.body, headers).then(
-      (row) => {
-        this.sending = false;
-        this.sendAttempt = 0;
-        this.dispatch({ type: 'settled', opId: w.opId, row });
-        if (this.state.status === 'offline') this.dispatch({ type: 'status', status: 'reconnecting', error: null });
-        this.kick();
-      },
-      (e: unknown) => {
-        this.sending = false;
-        const err = e instanceof HttpError ? e : new HttpError(0, 'network', String(e));
-        if (!err.retryable) {
-          this.dispatch({ type: 'rejected', opId: w.opId, error: err.message });
-          this.rejected$.next({ write: w, error: err });
-          return this.kick();
-        }
-        /* keep it queued: offline or a server hiccup */
-        if (err.status === 0) this.dispatch({ type: 'status', status: 'offline', error: err.message });
-        clearTimeout(this.retryTimer);
-        this.retryTimer = setTimeout(() => this.kick(), this.delay(this.sendAttempt++));
-      },
-    );
+    this.opts.transport.request<unknown>(req.method, req.path, req.body, headers)
+      .then((res) => this.rowsFor(w, res))
+      .then(
+        (rows) => {
+          this.sending = false;
+          this.sendAttempt = 0;
+          this.serverFailures.delete(w.opId);
+          this.dispatch({ type: 'settled', opId: w.opId, rows });
+          if (this.state.status === 'offline') this.dispatch({ type: 'status', status: this.streamLive ? 'live' : 'reconnecting', error: null });
+          this.kick();
+        },
+        (e: unknown) => {
+          this.sending = false;
+          const err = toHttp(e);
+          const failures = err.status === 0 ? 0 : (this.serverFailures.get(w.opId) ?? 0) + 1;
+          if (failures) this.serverFailures.set(w.opId, failures);
+          if (!err.retryable || failures > (this.opts.maxRetries ?? Infinity)) {
+            this.serverFailures.delete(w.opId);
+            this.dispatch({ type: 'rejected', opId: w.opId, error: err.message });
+            this.rejected$.next({ write: w, error: err });
+            return this.kick();
+          }
+          /* keep it queued: offline or a server hiccup */
+          if (err.status === 0) this.dispatch({ type: 'status', status: 'offline', error: err.message });
+          clearTimeout(this.retryTimer);
+          this.retryTimer = setTimeout(() => this.kick(), this.delay(this.sendAttempt++));
+        },
+      );
   }
 
-  private async bootstrap(): Promise<void> {
+  private bootstrap(): Promise<void> {
+    return (this.booting ??= this.doBootstrap().finally(() => { this.booting = null; }));
+  }
+
+  private async doBootstrap(): Promise<void> {
     this.dispatch({ type: 'status', status: 'bootstrapping' });
     for (let n = 0; this.running; n++) {
+      let data: Record<string, unknown> & { seq: number };
       try {
-        const data = await this.opts.transport.request<Record<string, unknown> & { seq: number }>('GET', this.opts.bootstrapPath);
-        let base = emptyTables<M>(this.opts.collections);
+        data = await this.opts.transport.request<Record<string, unknown> & { seq: number }>('GET', this.opts.bootstrapPath);
+      } catch (e) {
+        const err = toHttp(e);
+        if (!err.retryable) { this.lose(err); throw err; }
+        this.dispatch({ type: 'status', status: err.status === 0 ? 'offline' : 'reconnecting', error: err.message });
+        await new Promise((r) => setTimeout(r, this.delay(n)));
+        continue;
+      }
+      if (!this.running) return;
+      let base: TablesOf<M>;
+      if (this.opts.mapBootstrap) base = this.opts.mapBootstrap(data, this.state.base);
+      else {
+        base = emptyTables<M>(this.opts.collections);
         for (const c of this.opts.collections) {
           const rows = data[c];
           if (!Array.isArray(rows)) continue;
           const t: Record<ID, unknown> = {};
-          for (const r of rows) if (r && typeof r.id === 'string') t[r.id] = r;
+          for (const r of rows) if (isRow(r)) t[r.id] = r;
           base = { ...base, [c]: t };
         }
-        this.dispatch({ type: 'bootstrapped', seq: Number(data.seq) || 0, base });
-        return;
-      } catch (e) {
-        const err = e instanceof HttpError ? e : new HttpError(0, 'network', String(e));
-        if (!err.retryable) { this.dispatch({ type: 'status', status: 'error', error: err.message }); throw err; }
-        this.dispatch({ type: 'status', status: err.status === 0 ? 'offline' : 'reconnecting', error: err.message });
-        await new Promise((r) => setTimeout(r, this.delay(n)));
       }
+      this.dispatch({ type: 'bootstrapped', seq: Number(data.seq) || 0, base });
+      /* a re-bootstrap while the stream is up (reset) is live again at once */
+      if (this.streamLive) this.dispatch({ type: 'status', status: 'live', error: null });
+      this.bootstrapped$.next(data);
+      return;
     }
+  }
+
+  /** Apply changes (skipping ones already covered by seq) and announce the new ones. */
+  private applyChanges(changes: readonly Change[]) {
+    let seq = this.state.seq;
+    const fresh: Change[] = [];
+    for (const c of changes) if (c && typeof c.seq === 'number' && c.seq > seq) { fresh.push(c); seq = c.seq; }
+    if (!fresh.length) return;
+    const before = this.state.base;
+    this.dispatch({ type: 'changes', changes: fresh });
+    this.changes$.next({ changes: fresh, before });
   }
 
   /** Changes missed while disconnected; 410 = outside the window → bootstrap again. */
   private async catchUp(): Promise<void> {
     try {
-      const changes = await this.opts.transport.request<Change[]>('GET', this.opts.changesPath(this.state.seq));
-      this.dispatch({ type: 'changes', changes: Array.isArray(changes) ? changes : [] });
+      const r = await this.opts.transport.request<Change[] | { changes?: Change[] }>('GET', this.opts.changesPath(this.state.seq));
+      this.applyChanges(Array.isArray(r) ? r : Array.isArray(r?.changes) ? r.changes : []);
     } catch (e) {
       if (e instanceof HttpError && e.status === 410) await this.bootstrap();
       else throw e;
@@ -429,13 +671,20 @@ export class SyncEngine<M> {
         if (sig.type === 'open') {
           this.streamAttempt = 0;
           this.catchUp().then(
-            () => { this.dispatch({ type: 'status', status: 'live', error: null }); this.kick(); },
+            () => {
+              if (!this.running) return;
+              this.streamLive = true;
+              this.dispatch({ type: 'status', status: 'live', error: null });
+              this.kick();
+            },
             () => this.reconnect(),
           );
         } else if (sig.type === 'change') {
-          this.dispatch({ type: 'changes', changes: [sig.change] });
+          this.applyChanges([sig.change]);
         } else if (sig.type === 'reset') {
-          void this.bootstrap();
+          this.bootstrap().catch(() => {});
+        } else if (sig.type === 'event') {
+          this.events$.next({ event: sig.event, data: sig.data });
         }
       },
       error: () => this.reconnect(),
@@ -445,9 +694,43 @@ export class SyncEngine<M> {
 
   private reconnect() {
     if (!this.running) return;
+    this.streamLive = false;
     this.stream?.unsubscribe();
-    this.dispatch({ type: 'status', status: this.state.status === 'offline' ? 'offline' : 'reconnecting' });
+    this.dispatch({ type: 'status', status: this.state.status === 'offline' || browserOffline() ? 'offline' : 'reconnecting' });
     clearTimeout(this.streamTimer);
-    this.streamTimer = setTimeout(() => this.openStream(), this.delay(this.streamAttempt++));
+    this.streamTimer = setTimeout(() => this.reopen(), this.delay(this.streamAttempt++));
+  }
+
+  /** Open the stream again — after the probe, when there is one. */
+  private reopen() {
+    if (!this.running) return;
+    if (!this.opts.probe) return this.openStream();
+    this.opts.transport.request<Change[] | { changes?: Change[] }>('GET', this.opts.changesPath(this.state.seq)).then(
+      (r) => { if (!this.running) return; this.applyChanges(Array.isArray(r) ? r : Array.isArray(r?.changes) ? r.changes : []); this.openStream(); },
+      (e: unknown) => {
+        const err = toHttp(e);
+        if (err.status === 410) return this.openStream(); /* the catch-up on open re-bootstraps */
+        if (!err.retryable) return this.lose(err);
+        this.reconnect();
+      },
+    );
+  }
+
+  /** Access refused: stop syncing (the queue and base stay as they are). */
+  private lose(err: HttpError) {
+    if (!this.running) return;
+    this.halt();
+    this.lost$.next(err);
+    this.dispatch({ type: 'status', status: 'error', error: err.message });
+  }
+
+  private halt() {
+    this.running = false;
+    this.streamLive = false;
+    this.stream?.unsubscribe();
+    clearTimeout(this.retryTimer);
+    clearTimeout(this.streamTimer);
+    globalThis.removeEventListener?.('offline', this.onOffline);
+    globalThis.removeEventListener?.('online', this.onOnline);
   }
 }
