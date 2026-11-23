@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- **No monospace.** `@modx/tokens` drops `--mx-font-mono` (and the JetBrains Mono stack); numbers, ids, code and
+  eyebrows use the sans with tabular figures (`--mx-numeric: tabular-nums`). `mx-markdown` code, the command list's
+  group labels and the date picker's weekday row follow. Apps that still reference `--mx-font-mono` should switch to
+  `var(--mx-font-sans)` + `font-variant-numeric: tabular-nums`.
 - `mx-input` / `mx-textarea`: `autofocus` is skipped on touch-only devices. On iOS a script focus outside a tap left a field looking focused but ignoring typing (seen on the sign-in form).
 
 Phones and installed web apps (iOS standalone).

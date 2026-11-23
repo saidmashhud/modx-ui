@@ -216,7 +216,7 @@ export class MxCommandList extends MxElement {
     input { flex: 1; height: var(--mx-control-lg); border: 0; outline: 0; background: transparent; color: var(--mx-text); font: inherit; font-size: var(--mx-field-size); }
     input::placeholder { color: var(--mx-text-faint); }
     ul { list-style: none; margin: 0; padding: 4px; overflow-y: auto; max-height: var(--mx-list-max-height, 320px); overscroll-behavior: contain; }
-    .group { padding: 8px 8px 4px; font: 500 var(--mx-text-xs) / 1 var(--mx-font-mono); text-transform: uppercase;
+    .group { padding: 8px 8px 4px; font: var(--mx-weight-semibold) var(--mx-text-xs) / 1 var(--mx-font-sans); text-transform: uppercase;
       letter-spacing: var(--mx-tracking-eyebrow); color: var(--mx-text-faint); }
     li[role='option'] {
       display: flex; align-items: center; gap: var(--mx-space-2); height: var(--mx-control-md); padding: 0 var(--mx-space-2);

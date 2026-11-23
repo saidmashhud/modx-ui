@@ -31,7 +31,7 @@ import '@modx/ui';
 
 ## @modx/tokens
 
-`--mx-*` custom properties: a gray scale, one accent, status colors, type scale (display / sans / mono),
+`--mx-*` custom properties: a gray scale, one accent, status colors, type scale (display / sans; no monospace — tabular figures instead),
 spacing, radii, shadows, motion. `data-theme="dark" | "light"` on the root (or any section) switches the
 semantic layer; `applyTheme()` and typed `token` references are exported.
 

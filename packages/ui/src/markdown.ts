@@ -118,9 +118,9 @@ export class MxMarkdown extends MxElement {
     ul, ol { padding-inline-start: 1.4em; }
     li + li { margin-top: 0.15em; }
     blockquote { padding-inline-start: var(--mx-space-3); border-inline-start: 2px solid var(--mx-border-strong); color: var(--mx-text-muted); }
-    code { font: 0.9em var(--mx-font-mono); padding: 1px 4px; border-radius: var(--mx-radius-sm); background: var(--mx-surface-active); color: var(--mx-text); }
+    code { font: var(--mx-weight-medium) 0.92em var(--mx-font-sans); font-variant-numeric: tabular-nums; padding: 1px 5px; border-radius: var(--mx-radius-sm); background: var(--mx-surface-active); color: var(--mx-text); }
     pre { padding: var(--mx-space-3); border-radius: var(--mx-radius-md); background: var(--mx-bg-sunken); border: 1px solid var(--mx-border); overflow-x: auto; }
-    pre code { padding: 0; background: none; font-size: var(--mx-text-sm); }
+    pre code { padding: 0; background: none; font-size: var(--mx-text-sm); font-weight: var(--mx-weight-regular); white-space: pre; }
     strong { color: var(--mx-text); font-weight: var(--mx-weight-semibold); }
     a { color: var(--mx-accent-text); text-decoration: none; }
     a:hover { text-decoration: underline; }

@@ -290,7 +290,7 @@ export class MxDatePicker extends MxElement {
     .typed:focus { outline: none; border-color: var(--mx-accent); }
     .typed[aria-invalid='true'] { border-color: var(--mx-danger); }
     table { border-collapse: collapse; width: 100%; table-layout: fixed; }
-    th { font: 500 var(--mx-text-xs)/1 var(--mx-font-mono); color: var(--mx-text-faint); text-transform: uppercase; padding: 4px 0; }
+    th { font: var(--mx-weight-semibold) var(--mx-text-xs)/1 var(--mx-font-sans); letter-spacing: var(--mx-tracking-eyebrow); color: var(--mx-text-faint); text-transform: uppercase; padding: 4px 0; }
     td { padding: 1px; text-align: center; }
     .d { all: unset; box-sizing: border-box; width: 100%; height: var(--mx-control-sm); display: grid; place-items: center; border-radius: var(--mx-radius-md);
       font-size: var(--mx-text-md); font-variant-numeric: tabular-nums; color: var(--mx-text-secondary); cursor: pointer; }
