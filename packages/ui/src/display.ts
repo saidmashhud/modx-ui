@@ -247,10 +247,14 @@ export class MxStat extends MxElement {
     :host([tone='pos']) .value { color: var(--mx-success); }
     :host([tone='warn']) .value { color: var(--mx-warning); }
     .hint { font-size: var(--mx-text-xs); line-height: 1.4; color: var(--mx-text-faint); }
-    .hint:not(:has(+ *)) slot:not(:has(*)) { display: none; }
   `];
   render() {
-    return html`<span class="label">${this.label}<slot name="label"></slot></span><span class="value"><slot></slot></span><span class="hint"><slot name="hint"></slot></span>`;
+    return html`<span class="label">${this.label}<slot name="label"></slot></span><span class="value"><slot></slot></span><span class="hint"><slot name="hint" @slotchange=${this.onHint}></slot></span>`;
+  }
+  /** No hint, no empty line under the figure. */
+  private onHint(e: Event) {
+    const has = (e.target as HTMLSlotElement).assignedNodes({ flatten: true }).some((n) => n.nodeType === 1 || (n.textContent ?? '').trim());
+    (e.target as HTMLElement).parentElement!.hidden = !has;
   }
 }
 define('mx-stat', MxStat);
