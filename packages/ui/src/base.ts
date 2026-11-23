@@ -17,6 +17,15 @@ export const base = css`
   }
 `;
 
+/**
+ * The site's reveal, for an app: content arrives with a short rise and fade (`--mx-duration-enter`, ease-out; still
+ * for reduced motion). Add to a view's styles and put `animation: mx-enter var(--mx-duration-enter) var(--mx-ease-out) both`
+ * on what should arrive; stagger with `animation-delay`.
+ */
+export const enter = css`
+  @keyframes mx-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+`;
+
 export abstract class MxElement extends LitElement {
   /** Dispatch a composed, bubbling CustomEvent. */
   protected emit<T>(name: string, detail?: T, opts: { cancelable?: boolean } = {}): boolean {

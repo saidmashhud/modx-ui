@@ -1,5 +1,7 @@
 import { css, html, nothing, svg } from 'lit';
 import { base, define, MxElement, kitStrings } from './base.js';
+import './illustration.js';
+import type { IsoScene } from './illustration.js';
 import './icons.js';
 
 /* ───────────── mx-kbd ───────────── */
@@ -7,8 +9,8 @@ export class MxKbd extends MxElement {
   static styles = [base, css`
     :host {
       display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px;
-      border-radius: var(--mx-radius-sm); border: 1px solid var(--mx-border-strong); background: var(--mx-surface);
-      color: var(--mx-text-muted); font: 500 var(--mx-text-xs) / 1 var(--mx-font-sans); font-variant-numeric: tabular-nums;
+      border-radius: var(--mx-radius-sm); border: 1px solid var(--mx-border-strong); border-bottom-width: 2px; background: var(--mx-surface);
+      color: var(--mx-text-secondary); font: 500 var(--mx-text-xs) / 1 var(--mx-font-sans); font-variant-numeric: tabular-nums;
     }
   `];
   render() {
@@ -177,33 +179,86 @@ export class MxSpinner extends MxElement {
 define('mx-spinner', MxSpinner);
 
 /* ───────────── mx-empty ───────────── */
+/** Which isometric scene stands for an icon in an empty state (the site's line work instead of a lone glyph). */
+const SCENE_FOR: Record<string, IsoScene> = {
+  estimate: 'columns', activity: 'columns', branch: 'columns', wallet: 'columns', target: 'columns',
+  timeline: 'plan', calendar: 'plan', cycle: 'plan', layers: 'plan', board: 'plan', whiteboard: 'plan',
+  inbox: 'module', search: 'module', comment: 'module', bell: 'module', link: 'module', user: 'module', users: 'module',
+};
+
+/**
+ * Empty state: an isometric scene (the site's line work, picked from `icon`, or `scene`), a display heading, text and
+ * an action. `scene="none"` keeps the plain icon glyph.
+ */
 export class MxEmpty extends MxElement {
-  static properties = { icon: { type: String }, heading: { type: String } };
+  static properties = { icon: { type: String }, heading: { type: String }, scene: { type: String } };
   declare icon: string;
   declare heading: string;
+  declare scene: IsoScene | 'none' | '';
   constructor() {
     super();
     this.icon = 'cube';
     this.heading = '';
+    this.scene = '';
   }
   static styles = [base, css`
     :host { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--mx-space-3);
       padding: var(--mx-space-12) var(--mx-space-6); text-align: center; color: var(--mx-text-muted); }
     .glyph { display: grid; place-items: center; width: 48px; height: 48px; border: 1px solid var(--mx-border-strong);
       border-radius: var(--mx-radius-lg); color: var(--mx-accent-text); }
-    h3 { margin: 0; font: var(--mx-weight-semibold) var(--mx-text-lg) / 1.3 var(--mx-font-display); color: var(--mx-text); letter-spacing: -0.01em; }
-    p { margin: 0; max-width: 40ch; font-size: var(--mx-text-md); line-height: var(--mx-leading-normal); }
+    mx-illustration { width: 120px; margin-bottom: var(--mx-space-2); }
+    h3 { margin: 0; font: var(--mx-weight-semibold) var(--mx-text-xl) / 1.2 var(--mx-font-display); color: var(--mx-text); letter-spacing: var(--mx-tracking-title, -0.015em); }
+    p { margin: 0; max-width: 42ch; font-size: var(--mx-text-md); line-height: var(--mx-leading-normal); }
   `];
   render() {
-    return html`<span class="glyph"><mx-icon name=${this.icon} size="22"></mx-icon></span>
+    const scene = this.scene === 'none' ? null : (this.scene || SCENE_FOR[this.icon] || 'stack');
+    return html`${scene ? html`<mx-illustration scene=${scene}></mx-illustration>` : html`<span class="glyph"><mx-icon name=${this.icon} size="22"></mx-icon></span>`}
       <h3>${this.heading}</h3><p><slot></slot></p><slot name="action"></slot>`;
   }
 }
+
+/* ───────────── mx-stat ───────────── */
+/**
+ * A figure with its label — the site's "facts" strip: a display-size number with tight tracking and tabular
+ * figures, a quiet label above and an optional hint below. `tone`: neg | pos | warn colours the value.
+ * Lay several out with a grid; `divided` on the host draws the hairline between neighbours.
+ */
+export class MxStat extends MxElement {
+  static properties = { label: { type: String }, tone: { type: String, reflect: true }, size: { type: String, reflect: true }, divided: { type: Boolean, reflect: true } };
+  declare label: string;
+  declare tone: '' | 'neg' | 'pos' | 'warn';
+  declare size: 'md' | 'lg';
+  declare divided: boolean;
+  constructor() {
+    super();
+    this.label = '';
+    this.tone = '';
+    this.size = 'md';
+    this.divided = false;
+  }
+  static styles = [base, css`
+    :host { display: grid; gap: 6px; align-content: start; min-width: 0; }
+    :host([divided]) { padding-inline-start: var(--mx-space-5); border-inline-start: 1px solid var(--mx-border); }
+    .label { font-size: var(--mx-text-sm); color: var(--mx-text-muted); }
+    .value { font: var(--mx-weight-semibold) var(--mx-text-2xl) / 1.05 var(--mx-font-display); letter-spacing: var(--mx-tracking-display, -0.025em);
+      font-variant-numeric: tabular-nums; color: var(--mx-text); overflow-wrap: anywhere; }
+    :host([size='lg']) .value { font-size: var(--mx-text-3xl); }
+    :host([tone='neg']) .value { color: var(--mx-danger); }
+    :host([tone='pos']) .value { color: var(--mx-success); }
+    :host([tone='warn']) .value { color: var(--mx-warning); }
+    .hint { font-size: var(--mx-text-xs); line-height: 1.4; color: var(--mx-text-faint); }
+    .hint:not(:has(+ *)) slot:not(:has(*)) { display: none; }
+  `];
+  render() {
+    return html`<span class="label">${this.label}<slot name="label"></slot></span><span class="value"><slot></slot></span><span class="hint"><slot name="hint"></slot></span>`;
+  }
+}
+define('mx-stat', MxStat);
 define('mx-empty', MxEmpty);
 
 declare global {
   interface HTMLElementTagNameMap {
     'mx-kbd': MxKbd; 'mx-avatar': MxAvatar; 'mx-status-icon': MxStatusIcon; 'mx-priority-icon': MxPriorityIcon;
-    'mx-chip': MxChip; 'mx-spinner': MxSpinner; 'mx-empty': MxEmpty;
+    'mx-chip': MxChip; 'mx-spinner': MxSpinner; 'mx-empty': MxEmpty; 'mx-stat': MxStat;
   }
 }

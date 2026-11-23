@@ -16,7 +16,8 @@ The packages ship TypeScript sources (`main: src/index.ts`) and are meant to be 
 
 ## @modx/ui
 
-`mx-button` `mx-icon` (16 px line set) `mx-kbd` `mx-avatar` `mx-chip` `mx-spinner` `mx-empty`
+`mx-button` `mx-icon` (16 px line set) `mx-kbd` `mx-avatar` `mx-chip` `mx-spinner` `mx-empty` (with an isometric scene) `mx-stat`
+`mx-illustration` + `iso()` (the site's isometric line work) · `enter` (keyframes for views arriving)
 `mx-status-icon` `mx-priority-icon` · `mx-input` `mx-textarea` (auto-grow) `mx-segmented` `mx-switch`
 `mx-select` `mx-date-picker` · `mx-popover` (Popover API, flip positioning) `mx-command-list` (fuzzy,
 keyboard, multi-select, ARIA combobox / listbox) `openPicker()` `mx-dialog` (native modal) `mx-tooltip`

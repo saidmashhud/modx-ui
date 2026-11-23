@@ -56,6 +56,9 @@
   --mx-leading-normal: 1.5;
   --mx-tracking-tight: -0.03em; /* -1.5px @ 48px */
   --mx-tracking-eyebrow: 0.08em;
+  /* the site's display type: big headings pull in, page titles a little */
+  --mx-tracking-display: -0.025em;
+  --mx-tracking-title: -0.015em;
 
   --mx-weight-light: 300;
   --mx-weight-regular: 400;
@@ -86,6 +89,8 @@
   --mx-duration-fast: 90ms;
   --mx-duration-base: 160ms;
   --mx-duration-slow: 240ms;
+  /* views and sections arriving (the site's reveal, shorter for an app) */
+  --mx-duration-enter: 320ms;
 
   /* control heights — one scale for every interactive control (outer, border included):
      xs 24 static chips/tags · sm 28 dense toolbars, filter chips, nav rows · md 32 default buttons, inputs, selects,
@@ -179,5 +184,6 @@
     --mx-duration-fast: 0ms;
     --mx-duration-base: 0ms;
     --mx-duration-slow: 0ms;
+    --mx-duration-enter: 0ms;
   }
 }

@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- **The site's design language in the kit.** `mx-illustration` (`scene`: stack | plan | columns | module) and
+  `iso(boxes, unit, plane)` — the isometric hairline drawings of the mod-x site, with one indigo module that settles
+  gently (still for reduced motion). `mx-empty` shows a scene picked from its `icon` (or `scene`; `scene="none"` keeps
+  the glyph) and a larger display heading. `mx-stat` — a figure with its label, the site's facts strip: display type,
+  tight tracking, tabular figures, optional hint, `tone`, `divided` hairline. `enter` — keyframes for content
+  arriving (`--mx-duration-enter`). Tokens `--mx-tracking-display`, `--mx-tracking-title`, `--mx-duration-enter`.
+  `mx-kbd` gets the site's key cap (2 px bottom edge); `mx-nav-item` counts in the accent text colour, hover eased.
 - **No monospace.** `@modx/tokens` drops `--mx-font-mono` (and the JetBrains Mono stack); numbers, ids, code and
   eyebrows use the sans with tabular figures (`--mx-numeric: tabular-nums`). `mx-markdown` code, the command list's
   group labels and the date picker's weekday row follow. Apps that still reference `--mx-font-mono` should switch to

@@ -34,6 +34,7 @@ export class MxNavItem extends MxElement {
       display: flex; align-items: center; gap: var(--mx-space-2); height: var(--mx-control-sm); padding: 0 var(--mx-space-2);
       border-radius: var(--mx-radius-md); color: var(--mx-text-muted); text-decoration: none; font-size: var(--mx-text-md);
       font-weight: var(--mx-weight-medium);
+      transition: background-color var(--mx-duration-fast) var(--mx-ease-out), color var(--mx-duration-fast) var(--mx-ease-out);
     }
     a:hover { background: var(--mx-surface-hover); color: var(--mx-text); }
     :host([active]) a { background: var(--mx-surface-active); color: var(--mx-text); }
@@ -43,7 +44,7 @@ export class MxNavItem extends MxElement {
     .swatch { width: 14px; height: 14px; border-radius: var(--mx-radius-sm); display: inline-grid; place-items: center;
       font: 600 8px/1 var(--mx-font-sans); color: var(--mx-gray-0); }
     .label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .count { font-size: var(--mx-text-sm); color: var(--mx-text-faint); font-variant-numeric: tabular-nums; }
+    .count { font-size: var(--mx-text-sm); font-weight: var(--mx-weight-medium); color: var(--mx-accent-text); font-variant-numeric: tabular-nums; }
   `];
 
   private onClick(e: MouseEvent) {

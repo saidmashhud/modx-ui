@@ -2,6 +2,7 @@ export * from './base.js';
 export * from './icons.js';
 export * from './button.js';
 export * from './display.js';
+export * from './illustration.js';
 export * from './form.js';
 export * from './overlay.js';
 export * from './nav.js';
