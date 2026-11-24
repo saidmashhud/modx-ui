@@ -1,4 +1,4 @@
-import { css, html, nothing, type TemplateResult } from 'lit';
+import { css, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { base, define, MxElement, nextId, kitStrings } from './base.js';
 import './icons.js';
 import './display.js';
@@ -478,6 +478,12 @@ define('mx-dialog', MxDialog);
 
 /* ───────────── mx-tooltip ───────────── */
 
+/**
+ * Tooltip on hover / focus of the slotted trigger (not on touch screens). The text describes the trigger for
+ * assistive tech: it is set as `aria-description` on the slotted element itself — an id reference
+ * (`aria-describedby`) cannot cross the shadow boundary — and `mx-button` passes it on to its inner button.
+ * Escape dismisses it (WCAG 1.4.13) without moving focus.
+ */
 export class MxTooltip extends MxElement {
   static properties = { content: { type: String }, shortcut: { type: String }, placement: { type: String } };
   declare content: string;
@@ -485,6 +491,9 @@ export class MxTooltip extends MxElement {
   declare placement: Placement;
   private timer?: number;
   private tipId = nextId('tip');
+  private shown = false;
+  /** The element we described, and its own aria-description before (restored when it leaves or we go). */
+  private described: { el: Element; prev: string | null; ours: string } | null = null;
 
   constructor() {
     super();
@@ -503,22 +512,58 @@ export class MxTooltip extends MxElement {
     .tip:popover-open { display: inline-flex; }
   `];
 
+  /** What the trigger is described as: the text and its shortcut ("Archive (E)"). */
+  get description(): string {
+    const c = this.content.trim();
+    return c && this.shortcut ? `${c} (${this.shortcut})` : c;
+  }
+
   private show = () => {
-    if (matchMedia('(hover: none)').matches) return;
+    if (typeof matchMedia === 'function' && matchMedia('(hover: none)').matches) return;
     if (!this.content) return;
     clearTimeout(this.timer);
     this.timer = window.setTimeout(() => {
       const tip = this.renderRoot.querySelector('.tip') as HTMLElement | null;
       if (!tip || !this.isConnected) return;
-      tip.showPopover();
+      tip.showPopover?.();
       position(tip, this, this.placement, 6);
+      this.shown = true;
+      document.addEventListener('keydown', this.onKey, true);
     }, 450);
   };
 
   private hide = () => {
     clearTimeout(this.timer);
+    document.removeEventListener('keydown', this.onKey, true);
+    this.shown = false;
     const tip = this.renderRoot.querySelector('.tip') as HTMLElement | null;
-    if (tip?.matches(':popover-open')) tip.hidePopover();
+    try { if (tip?.matches(':popover-open')) tip.hidePopover(); } catch { /* no popover support */ }
+  };
+
+  /** Escape closes the tip only (a dialog around it stays open: the key is not consumed unless the tip was shown). */
+  private onKey = (e: KeyboardEvent) => {
+    if (e.key !== 'Escape' || !this.shown) return;
+    e.stopPropagation();
+    this.hide();
+  };
+
+  /** Describe the slotted trigger (and stop describing one that left). */
+  private describe = () => {
+    const slot = this.renderRoot.querySelector('slot');
+    const el = slot?.assignedElements({ flatten: true })[0] ?? null;
+    const text = this.description;
+    const d = this.described;
+    if (d && (d.el !== el || !text)) {
+      if (d.el.getAttribute('aria-description') === d.ours) {
+        if (d.prev == null) d.el.removeAttribute('aria-description');
+        else d.el.setAttribute('aria-description', d.prev);
+      }
+      this.described = null;
+    }
+    if (!el || !text) return;
+    if (!this.described) this.described = { el, prev: el.getAttribute('aria-description'), ours: text };
+    this.described.ours = text;
+    el.setAttribute('aria-description', text);
   };
 
   connectedCallback() {
@@ -528,16 +573,27 @@ export class MxTooltip extends MxElement {
     this.addEventListener('focusin', this.show);
     this.addEventListener('focusout', this.hide);
     this.addEventListener('pointerdown', this.hide);
+    if (this.hasUpdated) this.describe();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    clearTimeout(this.timer);
+    this.hide();
+    const d = this.described;
+    if (d && d.el.getAttribute('aria-description') === d.ours) {
+      if (d.prev == null) d.el.removeAttribute('aria-description');
+      else d.el.setAttribute('aria-description', d.prev);
+    }
+    this.described = null;
+  }
+
+  protected updated(changed: PropertyValues<this>) {
+    if (changed.has('content') || changed.has('shortcut')) this.describe();
   }
 
   render() {
-    return html`<slot aria-describedby=${this.tipId}></slot>
-      <div class="tip" id=${this.tipId} role="tooltip" popover="manual">${this.content}
+    return html`<slot @slotchange=${this.describe}></slot>
+      <div class="tip" id=${this.tipId} role="tooltip" aria-hidden="true" popover="manual">${this.content}
         ${this.shortcut ? this.shortcut.split(' ').map((k) => html`<mx-kbd>${k}</mx-kbd>`) : nothing}</div>`;
   }
 }

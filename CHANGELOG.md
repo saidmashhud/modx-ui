@@ -4,6 +4,10 @@
 
 Hardening.
 
+- `mx-tooltip`: the text now reaches assistive tech — it is set as `aria-description` on the slotted trigger
+  (the old `aria-describedby` on the `<slot>` pointed across the shadow boundary and described nothing), with the
+  shortcut ("Archive (E)"); the trigger's own description is restored when the tooltip goes. `mx-button` passes a
+  host `aria-description` on to its inner button. Escape dismisses a shown tooltip without moving focus.
 - `mx-spinner` and `mx-button loading`: for `prefers-reduced-motion` the ring stops turning and breathes
   (opacity) instead. Shared `spinner` styles in `base.ts` (`.spinner`).
 - Light theme contrast (WCAG): `--mx-text-muted` → `--mx-gray-550` #6b6c70 (5.2:1 on white, was 4.1), `--mx-text-faint`

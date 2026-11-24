@@ -15,6 +15,7 @@ export class MxButton extends MxElement {
   static formAssociated = true;
   static properties = {
     formDisabled: { state: true },
+    description: { type: String, attribute: 'aria-description' },
     variant: { type: String, reflect: true },
     size: { type: String, reflect: true },
     icon: { type: String },
@@ -33,6 +34,8 @@ export class MxButton extends MxElement {
   declare loading: boolean;
   declare type: 'button' | 'submit' | 'reset';
   declare formDisabled: boolean;
+  /** The host's `aria-description` (an mx-tooltip around the button sets it), passed on to the focusable inner button. */
+  declare description: string;
   private fc = new FormControl(this);
   declare label: string;
   declare pressed: boolean;
@@ -124,6 +127,7 @@ export class MxButton extends MxElement {
       aria-busy=${this.loading ? 'true' : 'false'}
       aria-pressed=${this.hasAttribute('pressed') || this.pressed ? 'true' : nothing}
       aria-label=${this.label || nothing}
+      aria-description=${this.description || nothing}
       @click=${this.onClick}
     >
       ${this.loading ? html`<span class="spinner" aria-hidden="true"></span>` : this.icon ? html`<mx-icon name=${this.icon}></mx-icon>` : nothing}
