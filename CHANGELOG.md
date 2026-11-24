@@ -1,6 +1,14 @@
 # Changelog
 
 ## Unreleased
+
+Hardening.
+
+- `mx-date-picker`: typed dates are read in the locale's order — the order the text box shows them (en-US
+  `11/21/2026`, ru-RU / de-DE `21.11.2026`), plus ISO `2026-11-21` everywhere. Before, en-US displayed month first
+  but parsed day first. `kitStrings.dateFormatHint` now defaults to `''`: the hint is derived from the locale
+  (`mm/dd/yyyy`, `dd.mm.yyyy`); set it only to translate the letters, in the locale's order. New `dateOrder(locale)`,
+  `dateHint(locale)`; `parseTypedDay(text, locale = kitStrings.locale)`.
 - **The site's design language in the kit.** `mx-illustration` (`scene`: stack | plan | columns | module) and
   `iso(boxes, unit, plane)` — the isometric hairline drawings of the mod-x site, with one indigo module that settles
   gently (still for reduced motion). `mx-empty` shows a scene picked from its `icon` (or `scene`; `scene="none"` keeps

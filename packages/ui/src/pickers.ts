@@ -189,17 +189,55 @@ const addMonthsD = (day: string, n: number) => {
 };
 const todayD = () => { const t = new Date(); return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`; };
 
-/** Parse what a person types: 21.11.2026, 21/11/26, 2026-11-21, 21.11 (this year). */
-export function parseTypedDay(s: string): string | null {
-  const t = s.trim();
-  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(t);
+type DatePart = 'd' | 'm' | 'y';
+const orderCache = new Map<string, { order: DatePart[]; sep: string }>();
+
+/** The order of day, month and year in `locale`'s numeric dates, and the separator between them
+ * (en-US → m/d/y, ru-RU and de-DE → d.m.y, ja-JP → y/m/d), read from Intl.DateTimeFormat#formatToParts. */
+export function dateOrder(locale: string = kitStrings.locale): { order: DatePart[]; sep: string } {
+  let o = orderCache.get(locale);
+  if (o) return o;
+  let order: DatePart[] = ['d', 'm', 'y'];
+  let sep = '.';
+  try {
+    const ps = new Intl.DateTimeFormat(locale, { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }).formatToParts(Date.UTC(2026, 10, 21));
+    const got = ps.filter((p) => p.type === 'day' || p.type === 'month' || p.type === 'year').map((p) => p.type[0] as DatePart);
+    if (got.length === 3 && new Set(got).size === 3) order = got;
+    const lit = ps.find((p, i) => p.type === 'literal' && i > 0 && i < ps.length - 1)?.value.trim();
+    if (lit) sep = lit;
+  } catch { /* unknown locale: day first */ }
+  o = { order, sep };
+  orderCache.set(locale, o);
+  return o;
+}
+
+/** The typed-date hint in the locale's order: "mm/dd/yyyy" (en-US), "dd.mm.yyyy" (ru-RU, de-DE). */
+export function dateHint(locale: string = kitStrings.locale): string {
+  const { order, sep } = dateOrder(locale);
+  return order.map((p) => (p === 'y' ? 'yyyy' : p + p)).join(sep);
+}
+
+/** Parse what a person types, in the locale's order (en-US 11/21/2026, ru-RU 21.11.2026, de-DE 21.11.26), with or
+ * without the year (this year), plus ISO 2026-11-21 in every locale. */
+export function parseTypedDay(s: string, locale: string = kitStrings.locale): string | null {
+  const t = s.trim().replace(/[./\s-]+$/, ''); /* "2026. 11. 21." (ko, hu) */
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(t);
   if (m) return valid(+m[1]!, +m[2]!, +m[3]!);
-  m = /^(\d{1,2})[./\s-](\d{1,2})(?:[./\s-](\d{2}|\d{4}))?$/.exec(t);
-  if (m) {
-    const y = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : new Date().getFullYear();
-    return valid(y, +m[2]!, +m[1]!);
+  const nums = t.split(/[./\s-]+/);
+  if (nums.length < 2 || nums.length > 3 || !nums.every((n) => /^\d{1,4}$/.test(n))) return null;
+  const { order } = dateOrder(locale);
+  /* a four-digit first number is a year whatever the locale (2026/11/21) */
+  const seq: DatePart[] = nums.length === 3 && nums[0]!.length === 4 ? ['y', 'm', 'd'] : nums.length === 3 ? order : order.filter((p) => p !== 'y');
+  const v: Partial<Record<DatePart, string>> = {};
+  seq.forEach((p, i) => { v[p] = nums[i]; });
+  if (v.d!.length > 2 || v.m!.length > 2) return null;
+  let y = new Date().getFullYear();
+  if (v.y !== undefined) {
+    if (v.y.length === 2) y = 2000 + +v.y;
+    else if (v.y.length === 4) y = +v.y;
+    else return null;
   }
-  return null;
+  return valid(y, +v.m!, +v.d!);
 }
 function valid(y: number, mo: number, d: number): string | null {
   if (mo < 1 || mo > 12 || d < 1) return null;
@@ -215,7 +253,8 @@ export interface DateRangeChange { start: number | null; end: number | null; sta
  * Values are epoch ms at 00:00 UTC of the day (API convention); `.day` / `detail.day` give "YYYY-MM-DD" for local-day data.
  * `range`: pick start then end (`.start` / `.end`), emits `{start, end, startDay, endDay}`.
  * Keyboard in the grid: arrows ±1 day / ±1 week, PageUp/PageDown ±1 month (+Shift: year), Home/End week, Enter picks, Esc closes.
- * A text box on top accepts typed dates (dd.mm.yyyy, yyyy-mm-dd).
+ * A text box on top accepts typed dates in the locale's order (the one the box shows: mm/dd/yyyy for en-US,
+ * dd.mm.yyyy for ru-RU) and ISO yyyy-mm-dd; its hint is `kitStrings.dateFormatHint`, or derived from the locale when empty.
  */
 export class MxDatePicker extends MxElement {
   static properties = {
@@ -445,6 +484,7 @@ export class MxDatePicker extends MxElement {
     const f = parts(this.focusDay);
     const monthLabel = new Intl.DateTimeFormat(kitStrings.locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(Date.UTC(f.y, f.m, 1));
     const has = this.range ? this.start != null : this.value != null;
+    const hint = kitStrings.dateFormatHint || dateHint(kitStrings.locale);
     return html`<div class="field">
       ${this.label ? html`<label id="${this.uid}-l" @click=${() => this.trigger?.focus()}>${this.label}</label>` : nothing}
       <button class="trigger" part="trigger" type="button" aria-haspopup="dialog" aria-expanded=${this.open ? 'true' : 'false'}
@@ -458,7 +498,7 @@ export class MxDatePicker extends MxElement {
         @mx-close=${(e: Event) => { e.stopPropagation(); this.open = false; this.trigger?.focus(); }}>
         ${this.open ? html`<div class="cal" role="dialog" aria-modal="false" aria-label=${this.label || kitStrings.pickDate}
             @keydown=${(e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.hide(); } }}>
-          <input class="typed" aria-label=${kitStrings.dateFormatHint} placeholder=${kitStrings.dateFormatHint}
+          <input class="typed" aria-label=${hint} placeholder=${hint}
             .value=${this.range ? '' : this.value != null ? this.fmt(msToDay(this.value), { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''}
             @input=${this.onTyped} @keydown=${this.onTypedKey} />
           <div class="top">
