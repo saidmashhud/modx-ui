@@ -129,6 +129,8 @@ export function memoryStorage<M>(): SyncStorage<M> & { value: SyncSnapshot<M> | 
 export interface LocalStorageSyncOptions {
   /** Scope the key per user / workspace (`<key>:<owner>`). Pass the same value as the engine's `owner`. */
   owner?: string;
+  /** A save failed (quota exceeded, storage blocked). Default: rethrow, which the engine reports on `storageError$`. */
+  onError?: (e: unknown) => void;
 }
 
 /**
@@ -149,7 +151,12 @@ export function localStorageSync<M>(key: string, opts: LocalStorageSyncOptions =
   return {
     load: () => read() as SyncSnapshot<M> | null,
     save: (s) => {
-      try { globalThis.localStorage?.setItem(k, JSON.stringify(mergeSnapshots(read(), s))); } catch { /* quota / private mode */ }
+      try {
+        globalThis.localStorage?.setItem(k, JSON.stringify(mergeSnapshots(read(), s)));
+      } catch (e) {
+        if (opts.onError) opts.onError(e);
+        else throw e;
+      }
     },
   };
 }
@@ -179,8 +186,9 @@ export interface SyncOptions<M> {
   clientId?: string;
   /** Delay before retry n (ms). Default: exponential backoff with jitter, capped at 15 s. */
   retryDelay?: (attempt: number) => number;
-  /** Retries of a write after server errors (5xx, 408, 429) before it is rejected. Network failures always keep
-   * it queued. Default: no limit. */
+  /** Retries of a write after server errors (5xx, 408, 429), with backoff, before it is rejected — rolled back,
+   * reported on `rejected$`, and the queue moves on. Network failures always keep it queued. Default 8
+   * (`DEFAULT_MAX_RETRIES`); `Infinity` retries forever (one failing write then blocks every write behind it). */
   maxRetries?: number;
   /** Turns the bootstrap payload into tables (default: one table per collection key). `prev` is the current
    * base — keep what the payload does not carry (rows loaded on demand, for instance). */
@@ -212,6 +220,8 @@ export interface IdempotencyOptions {
 }
 
 export const IDEMPOTENCY_HEADER = 'Idempotency-Key';
+/** Default `SyncOptions.maxRetries`. */
+export const DEFAULT_MAX_RETRIES = 8;
 
 /** op_<time36>_<counter36>_<random>: unique across tabs (the random part) and ordered within one. */
 export function defaultOpId(counter: number): string {
@@ -439,6 +449,9 @@ export class SyncEngine<M> {
   /** A stored snapshot belonged to another owner or schema version: it was not hydrated and its queued writes were
    * dropped (warn the person if `pending` is not empty). Emitted from `start()`. */
   readonly discarded$ = new Subject<SnapshotDiscard>();
+  /** Saving the snapshot failed (quota exceeded, private mode, a rejected promise): the queue lives in memory only
+   * until a later save succeeds — a reload now would lose queued writes. */
+  readonly storageError$ = new Subject<unknown>();
   private readonly opts: SyncOptions<M>;
   private readonly view: (s: SyncState<M>) => TablesOf<M>;
   private stream?: Subscription;
@@ -654,8 +667,10 @@ export class SyncEngine<M> {
       try {
         const { v, owner } = this.owner();
         const r = storage.save({ v, owner, seq: s.seq, base: s.base, pending: [...s.pending], idMap: s.idMap, done: [...this.done] });
-        if (r && typeof (r as Promise<void>).catch === 'function') (r as Promise<void>).catch(() => {});
-      } catch { /* storage is a convenience */ }
+        if (r && typeof (r as Promise<void>).catch === 'function') (r as Promise<void>).catch((e: unknown) => this.storageError$.next(e));
+      } catch (e) {
+        this.storageError$.next(e);
+      }
     };
     this.saveNow = save;
     const wait = this.opts.saveDebounceMs ?? 0;
@@ -737,8 +752,9 @@ export class SyncEngine<M> {
           const err = toHttp(e);
           const failures = err.status === 0 ? 0 : (this.serverFailures.get(w.opId) ?? 0) + 1;
           if (failures) this.serverFailures.set(w.opId, failures);
-          if (!err.retryable || failures > (this.opts.maxRetries ?? Infinity)) {
+          if (!err.retryable || failures > (this.opts.maxRetries ?? DEFAULT_MAX_RETRIES)) {
             this.serverFailures.delete(w.opId);
+            this.sendAttempt = 0; /* the next write starts without the failed one's backoff */
             this.dispatch({ type: 'rejected', opId: w.opId, error: err.message });
             this.rejected$.next({ write: w, error: err });
             return this.kick();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Observable, Subject } from 'rxjs';
-import { HttpError, localStorageSync, memoryStorage, mergeSnapshots, snapshotMismatch, SyncEngine, type Change, type PendingWrite, type SnapshotDiscard, type StreamSignal, type SyncOptions, type SyncSnapshot, type Transport } from '../src/index.js';
+import { DEFAULT_MAX_RETRIES, HttpError, localStorageSync, memoryStorage, mergeSnapshots, snapshotMismatch, SyncEngine, type Change, type PendingWrite, type SnapshotDiscard, type StreamSignal, type SyncOptions, type SyncSnapshot, type Transport } from '../src/index.js';
 
 interface Todo { id: string; title: string; done: boolean }
 interface Model { todos: Todo }
@@ -437,6 +437,56 @@ describe('SyncEngine hooks', () => {
     expect(n).toBe(3);
     expect(e.tables.todos.a?.title).toBe('one');
     e.stop();
+  });
+
+  it('by default gives up after DEFAULT_MAX_RETRIES server errors, rolls back, and the queue moves on', async () => {
+    const srv = new Scripted();
+    let n = 0;
+    srv.routes.set('PATCH /api/todos/a', () => { n++; throw new HttpError(503, 'busy', 'busy'); });
+    srv.routes.set('POST /api/todos', (b) => ({ id: 'srv_1', title: (b as { title: string }).title, done: false }));
+    const e = rich(srv);
+    await live(e);
+    const rejected: string[] = [];
+    e.rejected$.subscribe((r) => rejected.push(r.write.kind));
+    e.update('todos', 'a', { title: 'x' });
+    e.create('todos', { title: 'behind it', done: false });
+    await e.whenIdle();
+    expect(n).toBe(DEFAULT_MAX_RETRIES + 1);
+    expect(rejected).toEqual(['update']);
+    expect(e.tables.todos.a?.title).toBe('one');
+    expect(Object.values(e.tables.todos).map((t) => t.title)).toContain('behind it');
+    e.stop();
+  });
+
+  it('a failing save (quota) is reported on storageError$, not swallowed', async () => {
+    const srv = new Scripted();
+    const quota = new Error('QuotaExceededError');
+    const e = rich(srv, { storage: { load: () => null, save: () => { throw quota; } } });
+    const errs: unknown[] = [];
+    e.storageError$.subscribe((x) => errs.push(x));
+    await live(e);
+    expect(errs[0]).toBe(quota);
+    e.stop();
+    const async = rich(new Scripted(), { storage: { load: () => null, save: () => Promise.reject(quota) } });
+    const errs2: unknown[] = [];
+    async.storageError$.subscribe((x) => errs2.push(x));
+    await live(async);
+    await tick();
+    expect(errs2[0]).toBe(quota);
+    async.stop();
+    /* localStorageSync rethrows (so the engine sees it) unless given onError */
+    const had = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => null, setItem: () => { throw quota; } } });
+    try {
+      const snap = { seq: 0, base: { todos: {} }, pending: [], idMap: {} } as never;
+      expect(() => localStorageSync('k').save(snap)).toThrow(quota);
+      const seen: unknown[] = [];
+      localStorageSync('k', { onError: (x) => seen.push(x) }).save(snap);
+      expect(seen).toEqual([quota]);
+    } finally {
+      if (had) Object.defineProperty(globalThis, 'localStorage', had);
+      else delete (globalThis as { localStorage?: unknown }).localStorage;
+    }
   });
 
   it('mapBootstrap keeps rows the payload does not carry; bootstrapped$, events$ and changes$ report', async () => {

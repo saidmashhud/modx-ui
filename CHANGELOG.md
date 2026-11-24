@@ -4,6 +4,12 @@
 
 Hardening.
 
+- SyncEngine `maxRetries` defaults to 8 (`DEFAULT_MAX_RETRIES`) instead of no limit: a write the server keeps
+  failing (5xx / 408 / 429) is rejected after that, rolled back and reported on `rejected$`, and the writes behind it
+  go out (before, one failing write blocked the queue forever). Network failures still keep writes queued. Pass
+  `Infinity` for the old behaviour. The next write no longer inherits the failed one's backoff.
+- SyncEngine `storageError$`: a snapshot save that throws or rejects (quota exceeded, private mode) is reported
+  instead of swallowed. `localStorageSync` rethrows save errors for it, or calls `onError` when given.
 - **Month picker.** `mx-date-picker mode="month"` replaces `<input type="month">`: `value` / `min` / `max` are
   "YYYY-MM" (like the native input), the trigger reads "ноябрь 2026" / "November 2026" (nominative, no "г."), the
   popover has the year with previous / next buttons over a 4 × 3 grid of months (3 × 4 on phones); arrows, PageUp /
