@@ -4,6 +4,7 @@ export * from './button.js';
 export * from './display.js';
 export * from './illustration.js';
 export * from './form.js';
+export * from './form-control.js';
 export * from './overlay.js';
 export * from './nav.js';
 export * from './pickers.js';

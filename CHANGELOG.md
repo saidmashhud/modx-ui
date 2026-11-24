@@ -4,6 +4,15 @@
 
 Hardening.
 
+- **Forms.** `mx-input`, `mx-select`, `mx-date-picker`, `mx-switch` and `mx-button` are form-associated custom
+  elements (ElementInternals). Inside a `<form>` the fields submit under `name` (`mx-select multiple` and a date range
+  as repeated entries, dates as `YYYY-MM-DD`, `mx-switch` like a checkbox with `value`, default "on"), `required`
+  blocks submission with the browser's bubble (`kitStrings.valueMissing`), reset restores the initial attributes, a
+  disabled `<fieldset>` disables them, back/forward restores their state. `form`, `validity`, `validationMessage`,
+  `checkValidity()`, `reportValidity()` on each. New props: `name` on all four, `disabled` on `mx-input`, `required` on
+  `mx-select` / `mx-date-picker` / `mx-switch`. `mx-button type="submit"` submits the form ElementInternals names
+  (so the `form` attribute works), `type="reset"` resets it. Where ElementInternals is missing, everything behaves
+  as before. Helpers: `FormControl`, `attachFormInternals`, `applyFormState`, `formDataOf`.
 - `mx-date-picker`: typed dates are read in the locale's order — the order the text box shows them (en-US
   `11/21/2026`, ru-RU / de-DE `21.11.2026`), plus ISO `2026-11-21` everywhere. Before, en-US displayed month first
   but parsed day first. `kitStrings.dateFormatHint` now defaults to `''`: the hint is derived from the locale

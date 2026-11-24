@@ -44,6 +44,8 @@ export const kitStrings = {
   loading: 'Loading', unassigned: 'Unassigned', mention: 'Mention',
   /** BCP-47 locale for dates (mx-date-picker) and first day of week (0 = Sunday, 1 = Monday). */
   locale: 'en-US', weekStart: 0 as number,
+  /** Validation message of a `required` control left empty (form-associated mx-input / mx-select / mx-date-picker / mx-switch). */
+  valueMissing: 'Please fill out this field.',
   select: 'Select…', pickDate: 'Pick a date', today: 'Today', clear: 'Clear', prevMonth: 'Previous month', nextMonth: 'Next month',
   /** Hint in the date picker's text box. Empty (default): derived from `locale` in the order dates are typed and
    * shown ("mm/dd/yyyy" for en-US, "dd.mm.yyyy" for ru-RU). Set it only to translate the letters, keeping that order. */

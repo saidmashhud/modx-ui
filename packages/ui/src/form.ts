@@ -1,5 +1,6 @@
 import { css, html, nothing } from 'lit';
 import { base, define, MxElement, nextId, kitStrings } from './base.js';
+import { FormControl } from './form-control.js';
 import './icons.js';
 
 const fieldStyles = css`
@@ -35,9 +36,17 @@ const fieldStyles = css`
 export const autofocusAllowed = (): boolean =>
   typeof matchMedia === 'undefined' || !matchMedia('(hover: none) and (pointer: coarse)').matches;
 
+/**
+ * Text field. Form-associated: inside a <form> it submits `value` under `name`, blocks submission while `required`
+ * and empty, follows a disabled <fieldset>, and resets to its `value` attribute.
+ */
 export class MxInput extends MxElement {
+  static formAssociated = true;
   static properties = {
     value: { type: String },
+    name: { type: String, reflect: true },
+    disabled: { type: Boolean, reflect: true },
+    formDisabled: { state: true },
     label: { type: String },
     placeholder: { type: String },
     icon: { type: String },
@@ -61,7 +70,12 @@ export class MxInput extends MxElement {
   declare required: boolean;
   declare bare: boolean;
   declare autofocus: boolean;
+  /** Name the value is submitted under. */
+  declare name: string;
+  declare disabled: boolean;
+  declare formDisabled: boolean;
   private inputId = nextId('in');
+  private fc = new FormControl(this);
 
   static shadowRootOptions = { ...MxElement.shadowRootOptions, delegatesFocus: true };
 
@@ -77,9 +91,25 @@ export class MxInput extends MxElement {
     this.bare = false;
     this.autofocus = false;
     this.autocomplete = 'off';
+    this.name = '';
+    this.disabled = false;
+    this.formDisabled = false;
   }
 
-  static styles = [base, fieldStyles, css`:host { display: block; }`];
+  static styles = [base, fieldStyles, css`:host { display: block; } :host([disabled]) .control { opacity: 0.5; }`];
+
+  /* ── form participation ── */
+  get form(): HTMLFormElement | null { return this.fc.form; }
+  get validity(): ValidityState | undefined { return this.fc.validity; }
+  get validationMessage(): string { return this.fc.validationMessage; }
+  checkValidity(): boolean { return this.fc.checkValidity(); }
+  reportValidity(): boolean { return this.fc.reportValidity(); }
+  formResetCallback() { this.value = this.getAttribute('value') ?? ''; }
+  formDisabledCallback(disabled: boolean) { this.formDisabled = disabled; }
+  formStateRestoreCallback(state: unknown) { if (typeof state === 'string') this.value = state; }
+  protected updated() {
+    this.fc.sync({ value: this.value ?? '', missing: this.required && !this.value, message: kitStrings.valueMissing, anchor: this.renderRoot.querySelector('input') });
+  }
 
   firstUpdated() {
     if (this.autofocus && autofocusAllowed()) requestAnimationFrame(() => this.focus());
@@ -95,7 +125,7 @@ export class MxInput extends MxElement {
       <div class="control" part="control">
         ${this.icon ? html`<mx-icon name=${this.icon}></mx-icon>` : nothing}
         <input id=${this.inputId} part="input" .value=${this.value} type=${this.type} placeholder=${this.placeholder} autocomplete=${this.autocomplete} inputmode=${this.inputmode || nothing}
-          ?required=${this.required} aria-invalid=${this.error ? 'true' : 'false'} aria-label=${this.label || this.placeholder || nothing}
+          ?required=${this.required} ?disabled=${this.disabled || this.formDisabled} aria-invalid=${this.error ? 'true' : 'false'} aria-label=${this.label || this.placeholder || nothing}
           @input=${(e: Event) => { this.value = (e.target as HTMLInputElement).value; this.emit('mx-input', this.value); }}
           @change=${() => this.emit('mx-change', this.value)} />
         <slot name="end"></slot>
@@ -331,21 +361,58 @@ declare global {
   interface HTMLElementTagNameMap { 'mx-input': MxInput; 'mx-textarea': MxTextarea; 'mx-segmented': MxSegmented }
 }
 
-/** On/off switch (`role="switch"`). Label goes in the default slot; emits `mx-change` with the new boolean. */
+/**
+ * On/off switch (`role="switch"`). Label goes in the default slot; emits `mx-change` with the new boolean.
+ * Form-associated like a checkbox: submits `value` (default "on") under `name` while checked, nothing otherwise;
+ * `required` means it must be on; resets to its `checked` attribute as first rendered.
+ */
 export class MxSwitch extends MxElement {
-  static properties = { checked: { type: Boolean, reflect: true }, disabled: { type: Boolean, reflect: true } };
+  static formAssociated = true;
+  static properties = {
+    checked: { type: Boolean, reflect: true }, disabled: { type: Boolean, reflect: true },
+    name: { type: String, reflect: true }, value: { type: String }, required: { type: Boolean, reflect: true },
+    formDisabled: { state: true },
+  };
   declare checked: boolean;
   declare disabled: boolean;
+  declare name: string;
+  declare value: string;
+  declare required: boolean;
+  declare formDisabled: boolean;
+  private fc = new FormControl(this);
+  private defaultChecked: boolean | null = null;
   constructor() {
     super();
     this.checked = false;
     this.disabled = false;
+    this.name = '';
+    this.value = 'on';
+    this.required = false;
+    this.formDisabled = false;
+  }
+  connectedCallback() {
+    super.connectedCallback();
+    this.defaultChecked ??= this.hasAttribute('checked');
+  }
+  get form(): HTMLFormElement | null { return this.fc.form; }
+  get validity(): ValidityState | undefined { return this.fc.validity; }
+  get validationMessage(): string { return this.fc.validationMessage; }
+  checkValidity(): boolean { return this.fc.checkValidity(); }
+  reportValidity(): boolean { return this.fc.reportValidity(); }
+  formResetCallback() { this.checked = this.defaultChecked ?? false; }
+  formDisabledCallback(disabled: boolean) { this.formDisabled = disabled; }
+  formStateRestoreCallback(state: unknown) { if (state === 'on' || state === 'off') this.checked = state === 'on'; }
+  protected updated() {
+    this.fc.sync({
+      value: this.checked ? this.value || 'on' : null, state: this.checked ? 'on' : 'off',
+      missing: this.required && !this.checked, message: kitStrings.valueMissing, anchor: this.renderRoot.querySelector('button'),
+    });
   }
   static styles = [base, css`
     /* Never stretch in grid/flex parents: the hit area must be exactly the visible control. */
     :host { display: inline-flex; width: fit-content; justify-self: start; align-self: center; }
     button { all: unset; display: inline-flex; align-items: center; gap: var(--mx-space-2); cursor: pointer; font-size: var(--mx-text-md); color: var(--mx-text-secondary); }
-    :host([disabled]) button { cursor: not-allowed; opacity: 0.55; }
+    :host([disabled]) button, button[aria-disabled='true'] { cursor: not-allowed; opacity: 0.55; }
     .track { position: relative; width: 28px; height: 16px; flex: none; border-radius: 8px; background: var(--mx-surface-active);
       box-shadow: inset 0 0 0 1px var(--mx-border-strong); transition: background-color var(--mx-duration-base) var(--mx-ease-out); }
     .thumb { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--mx-text-muted);
@@ -355,12 +422,13 @@ export class MxSwitch extends MxElement {
     button:focus-visible .track { box-shadow: var(--mx-focus-ring); }
   `];
   private toggle() {
-    if (this.disabled) return;
+    if (this.disabled || this.formDisabled) return;
     this.checked = !this.checked;
     this.emit('mx-change', this.checked);
   }
   render() {
-    return html`<button role="switch" aria-checked=${this.checked ? 'true' : 'false'} aria-disabled=${this.disabled ? 'true' : 'false'} @click=${this.toggle}>
+    return html`<button role="switch" aria-checked=${this.checked ? 'true' : 'false'} aria-disabled=${this.disabled || this.formDisabled ? 'true' : 'false'}
+      aria-required=${this.required ? 'true' : nothing} @click=${this.toggle}>
       <span class="track"><span class="thumb"></span></span><slot></slot></button>`;
   }
 }

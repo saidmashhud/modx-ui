@@ -1,15 +1,20 @@
 import { css, html, nothing } from 'lit';
 import { base, define, MxElement } from './base.js';
+import { FormControl } from './form-control.js';
 import './icons.js';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 /**
  * Button. The primary variant is the call to action: solid accent fill.
- * Renders a native <button> inside the shadow root; form submission via `type="submit"` is forwarded.
+ * Renders a native <button> inside the shadow root. Form-associated: `type="submit"` submits and `type="reset"`
+ * resets the form the button belongs to (its `form` attribute or nearest <form>, through ElementInternals; the
+ * nearest <form> where ElementInternals is missing). A disabled <fieldset> disables it.
  */
 export class MxButton extends MxElement {
+  static formAssociated = true;
   static properties = {
+    formDisabled: { state: true },
     variant: { type: String, reflect: true },
     size: { type: String, reflect: true },
     icon: { type: String },
@@ -26,7 +31,9 @@ export class MxButton extends MxElement {
   declare iconEnd: string;
   declare disabled: boolean;
   declare loading: boolean;
-  declare type: 'button' | 'submit';
+  declare type: 'button' | 'submit' | 'reset';
+  declare formDisabled: boolean;
+  private fc = new FormControl(this);
   declare label: string;
   declare pressed: boolean;
 
@@ -43,7 +50,12 @@ export class MxButton extends MxElement {
     this.type = 'button';
     this.label = '';
     this.pressed = false;
+    this.formDisabled = false;
   }
+
+  /** The form this button submits or resets. */
+  get form(): HTMLFormElement | null { return this.fc.form ?? this.closest('form'); }
+  formDisabledCallback(disabled: boolean) { this.formDisabled = disabled; }
 
   static styles = [base, css`
     :host { display: inline-flex; }
@@ -100,18 +112,19 @@ export class MxButton extends MxElement {
   `];
 
   private onClick(e: MouseEvent) {
-    if (this.disabled || this.loading) {
+    if (this.disabled || this.loading || this.formDisabled) {
       e.stopImmediatePropagation();
       return;
     }
-    if (this.type === 'submit') this.closest('form')?.requestSubmit();
+    if (this.type === 'submit') this.form?.requestSubmit();
+    else if (this.type === 'reset') this.form?.reset();
   }
 
   render() {
     return html`<button
       part="button"
       type="button"
-      ?disabled=${this.disabled}
+      ?disabled=${this.disabled || this.formDisabled}
       aria-busy=${this.loading ? 'true' : 'false'}
       aria-pressed=${this.hasAttribute('pressed') || this.pressed ? 'true' : nothing}
       aria-label=${this.label || nothing}

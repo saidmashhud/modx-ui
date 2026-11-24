@@ -1,5 +1,6 @@
 import { css, html, nothing, type PropertyValues } from 'lit';
 import { base, define, kitStrings, MxElement, nextId } from './base.js';
+import { FormControl, formDataOf } from './form-control.js';
 import type { CommandItem, MxCommandList, MxPopover } from './overlay.js';
 import './overlay.js';
 import './icons.js';
@@ -20,7 +21,7 @@ const fieldCss = css`
   :host([size='lg']) .trigger { height: var(--mx-control-lg); }
   .trigger:hover { border-color: var(--mx-text-faint); }
   .trigger:focus-visible, .trigger[aria-expanded='true'] { border-color: var(--mx-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mx-accent) 25%, transparent); }
-  :host([disabled]) .trigger { opacity: 0.5; cursor: default; pointer-events: none; }
+  :host([disabled]) .trigger, .trigger:disabled { opacity: 0.5; cursor: default; pointer-events: none; }
   :host([bare]) .trigger { border-color: transparent; background: transparent; }
   :host([bare]) .trigger:hover { background: var(--mx-surface-hover); }
   .val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -38,10 +39,16 @@ export interface SelectOption { value: string; label: string; hint?: string; ico
  * Search appears automatically for long lists (> 7 options) or with `searchable`. Keyboard: ↓/↑/Enter/Space/Alt+↓ open,
  * typing opens and filters, ↑/↓ + Enter choose, Esc closes and returns focus. `multiple` keeps it open and toggles.
  * Emits `mx-change` with the value (single) or the array of values (multiple).
+ * Form-associated: submits the value (or each of `values`) under `name`, `required` blocks submission while
+ * nothing is picked, a disabled <fieldset> disables it, reset returns to the `value` attribute.
  */
 export class MxSelect extends MxElement {
+  static formAssociated = true;
   static properties = {
     value: { type: String },
+    name: { type: String, reflect: true },
+    required: { type: Boolean, reflect: true },
+    formDisabled: { state: true },
     values: { attribute: false },
     options: { attribute: false },
     multiple: { type: Boolean, reflect: true },
@@ -64,7 +71,11 @@ export class MxSelect extends MxElement {
   declare disabled: boolean;
   declare icon: string;
   declare open: boolean;
+  declare name: string;
+  declare required: boolean;
+  declare formDisabled: boolean;
   private uid = nextId('sel');
+  private fc = new FormControl(this);
 
   static shadowRootOptions = { ...MxElement.shadowRootOptions, delegatesFocus: true };
 
@@ -81,9 +92,33 @@ export class MxSelect extends MxElement {
     this.disabled = false;
     this.icon = '';
     this.open = false;
+    this.name = '';
+    this.required = false;
+    this.formDisabled = false;
   }
 
   static styles = [base, fieldCss];
+
+  /* ── form participation ── */
+  get form(): HTMLFormElement | null { return this.fc.form; }
+  get validity(): ValidityState | undefined { return this.fc.validity; }
+  get validationMessage(): string { return this.fc.validationMessage; }
+  checkValidity(): boolean { return this.fc.checkValidity(); }
+  reportValidity(): boolean { return this.fc.reportValidity(); }
+  formResetCallback() { this.value = this.getAttribute('value') ?? ''; this.values = []; }
+  formDisabledCallback(disabled: boolean) { this.formDisabled = disabled; }
+  formStateRestoreCallback(state: unknown) {
+    if (typeof state === 'string') this.value = state;
+    else if (typeof FormData !== 'undefined' && state instanceof FormData) this.values = state.getAll(this.name).filter((v): v is string => typeof v === 'string');
+  }
+  protected updated() {
+    const sel = this.selected;
+    this.fc.sync({
+      value: this.multiple ? formDataOf(this.name, sel) : sel[0] ?? '',
+      missing: this.required && !sel.length, message: kitStrings.valueMissing, anchor: this.trigger,
+    });
+  }
+  private get off(): boolean { return this.disabled || this.formDisabled; }
 
   private get pop(): MxPopover | null { return this.renderRoot.querySelector('mx-popover'); }
   private get list(): MxCommandList | null { return this.renderRoot.querySelector('mx-command-list'); }
@@ -96,7 +131,7 @@ export class MxSelect extends MxElement {
   }
 
   show(query = '') {
-    if (this.disabled || this.open) return;
+    if (this.off || this.open) return;
     this.open = true;
     this.updateComplete.then(() => {
       const list = this.list, pop = this.pop, tr = this.trigger;
@@ -150,7 +185,8 @@ export class MxSelect extends MxElement {
       ${this.label ? html`<label id="${this.uid}-l" @click=${() => this.trigger?.focus()}>${this.label}</label>` : nothing}
       <button class="trigger" part="trigger" type="button" aria-haspopup="listbox" aria-expanded=${this.open ? 'true' : 'false'}
         aria-labelledby=${this.label ? `${this.uid}-l ${this.uid}-v` : nothing} aria-label=${this.label ? nothing : this.placeholder || nothing}
-        ?disabled=${this.disabled} @click=${() => (this.open ? this.hide() : this.show())} @keydown=${this.onKey}>
+        aria-required=${this.required ? 'true' : nothing}
+        ?disabled=${this.off} @click=${() => (this.open ? this.hide() : this.show())} @keydown=${this.onKey}>
         ${this.icon ? html`<span class="ic"><mx-icon name=${this.icon} size="14"></mx-icon></span>` : nothing}
         <span id="${this.uid}-v" class="vwrap" style="display:contents">${this.display()}</span>
         <span class="ic"><mx-icon name="chevron-down" size="14"></mx-icon></span>
@@ -253,12 +289,19 @@ export interface DateRangeChange { start: number | null; end: number | null; sta
  * Values are epoch ms at 00:00 UTC of the day (API convention); `.day` / `detail.day` give "YYYY-MM-DD" for local-day data.
  * `range`: pick start then end (`.start` / `.end`), emits `{start, end, startDay, endDay}`.
  * Keyboard in the grid: arrows ±1 day / ±1 week, PageUp/PageDown ±1 month (+Shift: year), Home/End week, Enter picks, Esc closes.
+ * Form-associated: submits "YYYY-MM-DD" under `name` (a range: start and end, both under `name`), `required`
+ * blocks submission while empty (a range: until both ends are set), reset returns to the `value` / `start` / `end`
+ * attributes, a disabled <fieldset> disables it.
  * A text box on top accepts typed dates in the locale's order (the one the box shows: mm/dd/yyyy for en-US,
  * dd.mm.yyyy for ru-RU) and ISO yyyy-mm-dd; its hint is `kitStrings.dateFormatHint`, or derived from the locale when empty.
  */
 export class MxDatePicker extends MxElement {
+  static formAssociated = true;
   static properties = {
     value: { type: Number },
+    name: { type: String, reflect: true },
+    required: { type: Boolean, reflect: true },
+    formDisabled: { state: true },
     start: { type: Number },
     end: { type: Number },
     range: { type: Boolean, reflect: true },
@@ -289,7 +332,11 @@ export class MxDatePicker extends MxElement {
   declare focusDay: string;
   declare pending: string | null;
   declare hoverDay: string | null;
+  declare name: string;
+  declare required: boolean;
+  declare formDisabled: boolean;
   private uid = nextId('dp');
+  private fc = new FormControl(this);
 
   static shadowRootOptions = { ...MxElement.shadowRootOptions, delegatesFocus: true };
 
@@ -310,7 +357,40 @@ export class MxDatePicker extends MxElement {
     this.focusDay = todayD();
     this.pending = null;
     this.hoverDay = null;
+    this.name = '';
+    this.required = false;
+    this.formDisabled = false;
   }
+
+  /* ── form participation ── */
+  get form(): HTMLFormElement | null { return this.fc.form; }
+  get validity(): ValidityState | undefined { return this.fc.validity; }
+  get validationMessage(): string { return this.fc.validationMessage; }
+  checkValidity(): boolean { return this.fc.checkValidity(); }
+  reportValidity(): boolean { return this.fc.reportValidity(); }
+  formResetCallback() {
+    const num = (a: string) => { const v = this.getAttribute(a); return v == null || v === '' || !Number.isFinite(+v) ? null : +v; };
+    this.value = num('value');
+    this.start = num('start');
+    this.end = num('end');
+  }
+  formDisabledCallback(disabled: boolean) { this.formDisabled = disabled; }
+  formStateRestoreCallback(state: unknown) {
+    if (typeof state === 'string') this.value = state ? dayToMs(state) : null;
+    else if (typeof FormData !== 'undefined' && state instanceof FormData) {
+      const [s, e] = state.getAll(this.name).map((v) => (typeof v === 'string' && v ? dayToMs(v) : null));
+      this.start = s ?? null;
+      this.end = e ?? null;
+    }
+  }
+  protected updated() {
+    const missing = this.required && (this.range ? this.start == null || this.end == null : this.value == null);
+    this.fc.sync({
+      value: this.range ? formDataOf(this.name, [msToDay(this.start), msToDay(this.end)]) : msToDay(this.value),
+      missing, message: kitStrings.valueMissing, anchor: this.trigger,
+    });
+  }
+  private get off(): boolean { return this.disabled || this.formDisabled; }
 
   /** Convenience for local-day data ("YYYY-MM-DD"). */
   get day(): string { return msToDay(this.value); }
@@ -360,7 +440,7 @@ export class MxDatePicker extends MxElement {
   }
 
   show() {
-    if (this.disabled || this.open) return;
+    if (this.off || this.open) return;
     const cur = this.range ? msToDay(this.start) : msToDay(this.value);
     this.focusDay = cur || todayD();
     this.pending = null;
@@ -489,7 +569,7 @@ export class MxDatePicker extends MxElement {
       ${this.label ? html`<label id="${this.uid}-l" @click=${() => this.trigger?.focus()}>${this.label}</label>` : nothing}
       <button class="trigger" part="trigger" type="button" aria-haspopup="dialog" aria-expanded=${this.open ? 'true' : 'false'}
         aria-labelledby=${this.label ? `${this.uid}-l ${this.uid}-v` : nothing} aria-label=${this.label ? nothing : this.placeholder || kitStrings.pickDate}
-        ?disabled=${this.disabled} @click=${() => (this.open ? this.hide() : this.show())}
+        aria-required=${this.required ? 'true' : nothing} ?disabled=${this.off} @click=${() => (this.open ? this.hide() : this.show())}
         @keydown=${(e: KeyboardEvent) => { if (!this.open && (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); this.show(); } }}>
         <span class="ic"><mx-icon name="calendar" size="14"></mx-icon></span>
         <span id="${this.uid}-v" style="display:contents">${this.display()}</span>
