@@ -5,9 +5,9 @@ management with a sync engine for live, offline-capable apps on a
 [modx-core](https://github.com/saidmashhud/modx-core) server.
 
 ```
-packages/ui      @modx/ui      mx-* components (Lit 3)
-packages/tokens  @modx/tokens  CSS custom properties, dark and light themes
-packages/store   @modx/store   Store, selectors, tables, SyncEngine, query, router, OT (RxJS)
+packages/ui      @saidmashhud/modx-ui      mx-* components (Lit 3)
+packages/tokens  @saidmashhud/modx-tokens  CSS custom properties, dark and light themes
+packages/store   @saidmashhud/modx-store   Store, selectors, tables, SyncEngine, query, router, OT (RxJS)
 examples/todo    the three together against modx-core's examples/todo server
 ```
 
@@ -17,10 +17,10 @@ copy is consumed by a bundler (Vite, esbuild, Rollup) with no build step. No dec
 
 `npm run build` turns each package into a publishable one in `packages/<name>/dist`: ES2022 JavaScript, `.d.ts`,
 source maps, LICENSE, README, and a manifest whose `exports` carry `types`. `lit` is a peer dependency of
-`@modx/ui`; `sideEffects` lists the files that register elements (and `*.css`). Publish the built directory
+`@saidmashhud/modx-ui`; `sideEffects` lists the files that register elements (and `*.css`). Publish the built directory
 (`npm publish packages/ui/dist`); the source directories refuse to publish.
 
-## @modx/ui
+## @saidmashhud/modx-ui
 
 `mx-button` `mx-icon` (16 px line set) `mx-kbd` `mx-avatar` `mx-chip` `mx-spinner` `mx-empty` (with an isometric scene) `mx-stat`
 `mx-illustration` + `iso()` (the site's isometric line work) · `enter` (keyframes for views arriving)
@@ -31,18 +31,18 @@ keyboard, multi-select, ARIA combobox / listbox) `openPicker()` `mx-dialog` (nat
 `ObserveController` binds any RxJS-compatible stream to a Lit host without the kit depending on rxjs.
 
 ```ts
-import '@modx/tokens/tokens.css';
-import '@modx/ui';
+import '@saidmashhud/modx-tokens/tokens.css';
+import '@saidmashhud/modx-ui';
 // <mx-button variant="primary">Save</mx-button> <mx-input label="Title"></mx-input>
 ```
 
-## @modx/tokens
+## @saidmashhud/modx-tokens
 
 `--mx-*` custom properties: a gray scale, one accent, status colors, type scale (display / sans; no monospace — tabular figures instead),
 spacing, radii, shadows, motion. `data-theme="dark" | "light"` on the root (or any section) switches the
 semantic layer; `applyTheme()` and typed `token` references are exported.
 
-## @modx/store
+## @saidmashhud/modx-store
 
 - **Store** — Redux-style on RxJS: `BehaviorSubject` state, FIFO re-entrancy-safe dispatch, effects as
   `(actions$, state$) => actions$`, memoized `select`; `createSelector`, `weakMemo`.
@@ -75,7 +75,7 @@ semantic layer; `applyTheme()` and typed `token` references are exported.
   `OtClient`), the counterpart of modx-core's `ot.h`.
 
 ```ts
-import { createHttpTransport, localStorageSync, SyncEngine } from '@modx/store';
+import { createHttpTransport, localStorageSync, SyncEngine } from '@saidmashhud/modx-store';
 
 interface Model { todos: { id: string; title: string; done: boolean } }
 const sync = new SyncEngine<Model>({

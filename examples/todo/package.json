@@ -1,8 +1,8 @@
 {
-  "name": "@modx/example-todo",
+  "name": "modx-example-todo",
   "private": true,
   "type": "module",
   "license": "MIT",
   "scripts": { "dev": "vite", "build": "vite build", "preview": "vite preview" },
-  "dependencies": { "@modx/store": "0.1.0", "@modx/tokens": "0.1.0", "@modx/ui": "0.1.0", "lit": "^3.3.3", "rxjs": "^7.8.2" }
+  "dependencies": { "@saidmashhud/modx-store": "0.1.0", "@saidmashhud/modx-tokens": "0.1.0", "@saidmashhud/modx-ui": "0.1.0", "lit": "^3.3.3", "rxjs": "^7.8.2" }
 }

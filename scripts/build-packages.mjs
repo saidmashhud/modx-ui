@@ -51,5 +51,5 @@ for (const name of names) {
     sideEffects: Array.isArray(pkg.sideEffects) ? pkg.sideEffects.map(built) : pkg.sideEffects,
   };
   writeFileSync(join(out, 'package.json'), JSON.stringify(manifest, null, 2) + '\n');
-  console.log(`built @modx/${name} → packages/${name}/dist`);
+  console.log(`built @saidmashhud/modx-${name} → packages/${name}/dist`);
 }

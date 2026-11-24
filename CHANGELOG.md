@@ -1,16 +1,22 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 — 2026-11-25
 
-Hardening.
+Hardening, a month picker, and the npm scope.
+
+- **Package names:** `@modx/ui`, `@modx/tokens`, `@modx/store` are now `@saidmashhud/modx-ui`,
+  `@saidmashhud/modx-tokens`, `@saidmashhud/modx-store` (the `@modx` npm scope belongs to someone else).
+  Update imports accordingly.
+- Design (v21): no monospace anywhere — tabular figures on the sans; the mod-x site's design language (iso line
+  work, stats, enter motion); phones and installed apps (safe areas, keyboard, touch targets).
 
 - **Packaging** (nothing published). `npm run build` (`scripts/build-packages.mjs`) builds each package into
   `packages/<name>/dist` as a publishable package: tsc output with `.d.ts` and source maps, LICENSE, README, and a
   manifest whose `exports` point at the built files with `types`. The source manifests keep pointing at `src/*.ts`
   (vendored copies, like mod-x's, need no build) and refuse `npm publish` (`prepublishOnly` guard). Each package
-  gets LICENSE + README in `files`; `lit` moves to `peerDependencies` (and `devDependencies`) of `@modx/ui`;
-  `sideEffects`: the element-registering modules of `@modx/ui`, `*.css` for `@modx/tokens`, `false` for
-  `@modx/store`.
+  gets LICENSE + README in `files`; `lit` moves to `peerDependencies` (and `devDependencies`) of `@saidmashhud/modx-ui`;
+  `sideEffects`: the element-registering modules of `@saidmashhud/modx-ui`, `*.css` for `@saidmashhud/modx-tokens`, `false` for
+  `@saidmashhud/modx-store`.
 - `mx-tooltip`: the text now reaches assistive tech — it is set as `aria-description` on the slotted trigger
   (the old `aria-describedby` on the `<slot>` pointed across the shadow boundary and described nothing), with the
   shortcut ("Archive (E)"); the trigger's own description is restored when the tooltip goes. `mx-button` passes a
@@ -65,7 +71,7 @@ Hardening.
   tight tracking, tabular figures, optional hint, `tone`, `divided` hairline. `enter` — keyframes for content
   arriving (`--mx-duration-enter`). Tokens `--mx-tracking-display`, `--mx-tracking-title`, `--mx-duration-enter`.
   `mx-kbd` gets the site's key cap (2 px bottom edge); `mx-nav-item` counts in the accent text colour, hover eased.
-- **No monospace.** `@modx/tokens` drops `--mx-font-mono` (and the JetBrains Mono stack); numbers, ids, code and
+- **No monospace.** `@saidmashhud/modx-tokens` drops `--mx-font-mono` (and the JetBrains Mono stack); numbers, ids, code and
   eyebrows use the sans with tabular figures (`--mx-numeric: tabular-nums`). `mx-markdown` code, the command list's
   group labels and the date picker's weekday row follow. Apps that still reference `--mx-font-mono` should switch to
   `var(--mx-font-sans)` + `font-variant-numeric: tabular-nums`.
@@ -73,9 +79,9 @@ Hardening.
 
 Phones and installed web apps (iOS standalone).
 
-- `@modx/tokens`: `--mx-safe-top|right|bottom|left` (the `env(safe-area-inset-*)` values with a 0 fallback). Kit
+- `@saidmashhud/modx-tokens`: `--mx-safe-top|right|bottom|left` (the `env(safe-area-inset-*)` values with a 0 fallback). Kit
   components use them instead of `env()`, so apps can lay out against them and tests can emulate a notch.
-- `@modx/tokens`: `trackViewport(root?, { threshold?, pinScroll? })` follows the on-screen keyboard through
+- `@saidmashhud/modx-tokens`: `trackViewport(root?, { threshold?, pinScroll? })` follows the on-screen keyboard through
   `visualViewport` and keeps `--mx-viewport-height` / `--mx-keyboard-inset` and `data-keyboard` on the root (iOS does
   not shrink `dvh` or fixed layouts when the keyboard opens). Ignores toolbar-sized changes and pinch zoom.
 - `mx-dialog` (full screen on phones): height follows `--mx-viewport-height`, so the footer stays above the keyboard;
@@ -90,7 +96,7 @@ Phones and installed web apps (iOS standalone).
 - Fix: a full-screen `mx-dialog` on phones stayed 24 px low after opening (the slide-in offset outlived the
   animation), so its footer was cut off at the bottom edge.
 
-`@modx/store` `SyncEngine`: idempotency keys.
+`@saidmashhud/modx-store` `SyncEngine`: idempotency keys.
 
 - Every write — create, update, remove and `call()` — is sent with `Idempotency-Key: <opId>`. The key is the
   same on every retry of that queued write and survives reloads (the `opId` is persisted with the queue), so a
@@ -102,7 +108,7 @@ Phones and installed web apps (iOS standalone).
 - Default `opId`s are now `op_<time>_<counter>_<random>`: unique across tabs and devices of one account (the
   previous `op_<time>_<counter>` could repeat between two tabs in the same millisecond), 1–128 printable ASCII.
 
-`@modx/store` `SyncEngine`: hooks for apps with more than plain collections (needed to run mod-x's workspace on it).
+`@saidmashhud/modx-store` `SyncEngine`: hooks for apps with more than plain collections (needed to run mod-x's workspace on it).
 
 - `call(spec)`: queue a request to any endpoint in order with the other writes, with optimistic `patches` and
   `puts` until it settles; the response's rows settle it (`result`: one row, an array, or `{ [result]: rows }`
@@ -137,12 +143,12 @@ Phones and installed web apps (iOS standalone).
 
 First public version, extracted from a production tracker front end.
 
-- `@modx/ui`: mx-* web components on Lit 3 — button, icon set, input, textarea, segmented control, switch,
+- `@saidmashhud/modx-ui`: mx-* web components on Lit 3 — button, icon set, input, textarea, segmented control, switch,
   select, date picker, command list, popover, dialog, tooltip, toasts, navigation items, breadcrumbs,
   avatar, chip, status and priority glyphs, empty state, spinner, markdown renderer (no innerHTML), and
   `ObserveController` for binding RxJS-compatible streams to a host.
-- `@modx/tokens`: CSS custom properties with dark and light themes, typed references and theme helpers.
-- `@modx/store`: Store / reducers / effects on RxJS, memoized selectors, immutable tables, an HTTP + SSE
+- `@saidmashhud/modx-tokens`: CSS custom properties with dark and light themes, typed references and theme helpers.
+- `@saidmashhud/modx-store`: Store / reducers / effects on RxJS, memoized selectors, immutable tables, an HTTP + SSE
   transport, `SyncEngine` (bootstrap, SSE catch-up with 410 → re-bootstrap, optimistic writes with
   rollback, offline queue kept in storage, temporary ids, undo / redo), query helpers, a typed router with
   an RxJS `UiRouter`, client-side OT compatible with modx-core.

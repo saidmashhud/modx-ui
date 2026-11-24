@@ -1,7 +1,7 @@
-import '@modx/tokens/tokens.css';
-import '@modx/ui';
+import '@saidmashhud/modx-tokens/tokens.css';
+import '@saidmashhud/modx-ui';
 import { LitElement, css, html } from 'lit';
-import { createHttpTransport, createRouter, filterBy, localStorageSync, sortBy, SyncEngine, UiRouter, values, type SyncStatus } from '@modx/store';
+import { createHttpTransport, createRouter, filterBy, localStorageSync, sortBy, SyncEngine, UiRouter, values, type SyncStatus } from '@saidmashhud/modx-store';
 
 /* Rows as the modx-core todo example serves them. */
 interface Todo { id: string; title: string; list: string; done: boolean; updated_at: number }
