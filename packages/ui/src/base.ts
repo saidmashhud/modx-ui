@@ -26,6 +26,17 @@ export const enter = css`
   @keyframes mx-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 `;
 
+/**
+ * A loading ring on `.spinner`: turns, or for reduced motion stays still and only breathes (opacity), so the
+ * "working" cue survives without movement.
+ */
+export const spinner = css`
+  .spinner { border-radius: 50%; border: 1.5px solid currentColor; border-right-color: transparent; animation: mx-spin 700ms linear infinite; }
+  @keyframes mx-spin { to { transform: rotate(360deg); } }
+  @keyframes mx-breathe { 50% { opacity: 0.35; } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation: mx-breathe 1.6s ease-in-out infinite; } }
+`;
+
 export abstract class MxElement extends LitElement {
   /** Dispatch a composed, bubbling CustomEvent. */
   protected emit<T>(name: string, detail?: T, opts: { cancelable?: boolean } = {}): boolean {

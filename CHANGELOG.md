@@ -4,6 +4,8 @@
 
 Hardening.
 
+- `mx-spinner` and `mx-button loading`: for `prefers-reduced-motion` the ring stops turning and breathes
+  (opacity) instead. Shared `spinner` styles in `base.ts` (`.spinner`).
 - Light theme contrast (WCAG): `--mx-text-muted` → `--mx-gray-550` #6b6c70 (5.2:1 on white, was 4.1), `--mx-text-faint`
   → `--mx-gray-450` #8a8a8a (3.5:1, was 2.5; placeholders and hints only), `--mx-danger` → `--mx-red-600` #cf3036
   (5.1:1, was 3.4). New primitives `--mx-gray-450`, `--mx-gray-550`, `--mx-red-600`; the dark theme is unchanged.

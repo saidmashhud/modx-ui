@@ -1,5 +1,5 @@
 import { css, html, nothing } from 'lit';
-import { base, define, MxElement } from './base.js';
+import { base, define, MxElement, spinner } from './base.js';
 import { FormControl } from './form-control.js';
 import './icons.js';
 
@@ -57,7 +57,7 @@ export class MxButton extends MxElement {
   get form(): HTMLFormElement | null { return this.fc.form ?? this.closest('form'); }
   formDisabledCallback(disabled: boolean) { this.formDisabled = disabled; }
 
-  static styles = [base, css`
+  static styles = [base, spinner, css`
     :host { display: inline-flex; }
     button {
       display: inline-flex; align-items: center; justify-content: center; gap: var(--mx-space-2);
@@ -103,11 +103,7 @@ export class MxButton extends MxElement {
     }
 
     :host([disabled]) button, :host([loading]) button { opacity: 0.5; cursor: default; pointer-events: none; }
-    .spinner {
-      width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid currentColor; border-right-color: transparent;
-      animation: spin 700ms linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { width: 12px; height: 12px; }
     ::slotted(mx-kbd) { margin-inline-start: var(--mx-space-1); }
   `];
 

@@ -1,5 +1,5 @@
 import { css, html, nothing, svg } from 'lit';
-import { base, define, MxElement, kitStrings } from './base.js';
+import { base, define, MxElement, kitStrings, spinner } from './base.js';
 import './illustration.js';
 import type { IsoScene } from './illustration.js';
 import './icons.js';
@@ -167,13 +167,11 @@ export class MxSpinner extends MxElement {
     super();
     this.size = 16;
   }
-  static styles = [base, css`
+  static styles = [base, spinner, css`
     :host { display: inline-flex; color: var(--mx-text-muted); }
-    span { border-radius: 50%; border: 1.5px solid currentColor; border-right-color: transparent; animation: spin 700ms linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
   `];
   render() {
-    return html`<span role="status" aria-label=${kitStrings.loading} style="width:${this.size}px;height:${this.size}px"></span>`;
+    return html`<span class="spinner" role="status" aria-label=${kitStrings.loading} style="width:${this.size}px;height:${this.size}px"></span>`;
   }
 }
 define('mx-spinner', MxSpinner);
