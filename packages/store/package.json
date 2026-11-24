@@ -14,9 +14,16 @@
     ".": "./src/index.ts"
   },
   "files": [
-    "src"
+    "src",
+    "LICENSE",
+    "README.md"
   ],
   "dependencies": {
     "rxjs": "^7.8.2"
-  }
+  },
+  "scripts": {
+    "build": "node ../../scripts/build-packages.mjs store",
+    "prepublishOnly": "node ../../scripts/guard-publish.mjs"
+  },
+  "sideEffects": false
 }

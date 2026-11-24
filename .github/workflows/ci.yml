@@ -18,5 +18,7 @@ jobs:
         run: npm run typecheck
       - name: unit tests (store, sync engine, router, query, OT, markdown)
         run: npm test
+      - name: build the packages (dist + .d.ts)
+        run: npm run build
       - name: build the example
         run: npm run build:example

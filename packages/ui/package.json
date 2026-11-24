@@ -15,9 +15,30 @@
     "./*.js": "./src/*.ts"
   },
   "files": [
-    "src"
+    "src",
+    "LICENSE",
+    "README.md"
   ],
-  "dependencies": {
+  "scripts": {
+    "build": "node ../../scripts/build-packages.mjs ui",
+    "prepublishOnly": "node ../../scripts/guard-publish.mjs"
+  },
+  "sideEffects": [
+    "./src/index.ts",
+    "./src/button.ts",
+    "./src/display.ts",
+    "./src/form.ts",
+    "./src/icons.ts",
+    "./src/illustration.ts",
+    "./src/markdown.ts",
+    "./src/nav.ts",
+    "./src/overlay.ts",
+    "./src/pickers.ts"
+  ],
+  "peerDependencies": {
+    "lit": "^3.3.3"
+  },
+  "devDependencies": {
     "lit": "^3.3.3"
   }
 }

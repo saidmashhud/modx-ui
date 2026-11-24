@@ -11,7 +11,8 @@
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build:example": "npm run build -w @modx/example-todo",
-    "dev:example": "npm run dev -w @modx/example-todo"
+    "dev:example": "npm run dev -w @modx/example-todo",
+    "build": "node scripts/build-packages.mjs"
   },
   "devDependencies": {
     "happy-dom": "^21.0.4",

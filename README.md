@@ -11,8 +11,14 @@ packages/store   @modx/store   Store, selectors, tables, SyncEngine, query, rout
 examples/todo    the three together against modx-core's examples/todo server
 ```
 
-The packages ship TypeScript sources (`main: src/index.ts`) and are meant to be consumed by a bundler
-(Vite, esbuild, Rollup). No decorators — components declare `static properties` — so any TS setting works.
+In this repo the packages point at their TypeScript sources (`main: src/index.ts`), so a workspace or a vendored
+copy is consumed by a bundler (Vite, esbuild, Rollup) with no build step. No decorators — components declare
+`static properties` — so any TS setting works.
+
+`npm run build` turns each package into a publishable one in `packages/<name>/dist`: ES2022 JavaScript, `.d.ts`,
+source maps, LICENSE, README, and a manifest whose `exports` carry `types`. `lit` is a peer dependency of
+`@modx/ui`; `sideEffects` lists the files that register elements (and `*.css`). Publish the built directory
+(`npm publish packages/ui/dist`); the source directories refuse to publish.
 
 ## @modx/ui
 

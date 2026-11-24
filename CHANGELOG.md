@@ -4,6 +4,13 @@
 
 Hardening.
 
+- **Packaging** (nothing published). `npm run build` (`scripts/build-packages.mjs`) builds each package into
+  `packages/<name>/dist` as a publishable package: tsc output with `.d.ts` and source maps, LICENSE, README, and a
+  manifest whose `exports` point at the built files with `types`. The source manifests keep pointing at `src/*.ts`
+  (vendored copies, like mod-x's, need no build) and refuse `npm publish` (`prepublishOnly` guard). Each package
+  gets LICENSE + README in `files`; `lit` moves to `peerDependencies` (and `devDependencies`) of `@modx/ui`;
+  `sideEffects`: the element-registering modules of `@modx/ui`, `*.css` for `@modx/tokens`, `false` for
+  `@modx/store`.
 - `mx-tooltip`: the text now reaches assistive tech — it is set as `aria-description` on the slotted trigger
   (the old `aria-describedby` on the `<slot>` pointed across the shadow boundary and described nothing), with the
   shortcut ("Archive (E)"); the trigger's own description is restored when the tooltip goes. `mx-button` passes a

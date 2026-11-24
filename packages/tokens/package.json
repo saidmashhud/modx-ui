@@ -15,6 +15,15 @@
     "./tokens.css": "./src/tokens.css"
   },
   "files": [
-    "src"
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node ../../scripts/build-packages.mjs tokens",
+    "prepublishOnly": "node ../../scripts/guard-publish.mjs"
+  },
+  "sideEffects": [
+    "*.css"
   ]
 }
