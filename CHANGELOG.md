@@ -4,6 +4,13 @@
 
 Hardening.
 
+- **Month picker.** `mx-date-picker mode="month"` replaces `<input type="month">`: `value` / `min` / `max` are
+  "YYYY-MM" (like the native input), the trigger reads "ноябрь 2026" / "November 2026" (nominative, no "г."), the
+  popover has the year with previous / next buttons over a 4 × 3 grid of months (3 × 4 on phones); arrows, PageUp /
+  PageDown (year), Home / End, Enter, Esc; footer "This month" / "Clear"; form-associated (submits "YYYY-MM").
+  Emits `{ value, month }`. Kit strings `pickMonth`, `thisMonth`, `prevYear`, `nextYear`. Helpers `parseMonth`,
+  `formatMonth`, `shortMonth`, `addMonthsYm`, `monthKeyMove`, `monthDisabled`. `value` / `min` / `max` of the
+  day picker now also accept "YYYY-MM-DD" strings (typed `number | string | null`).
 - **SyncEngine snapshots know whose they are.** Snapshots carry `v` (schema version, `schemaVersion` option,
   default 1) and `owner` (`owner` option: user id or `user@workspace`). A stored snapshot of another owner or version
   is not hydrated: its queued writes are dropped, never sent, and reported on `discarded$` (`{ reason, pending,

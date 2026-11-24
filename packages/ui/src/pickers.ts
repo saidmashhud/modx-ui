@@ -281,7 +281,83 @@ function valid(y: number, mo: number, d: number): string | null {
   return d > last ? null : `${y}-${pad(mo)}-${pad(d)}`;
 }
 
+
+/* ───────────── months ("YYYY-MM", the native month input's value) ───────────── */
+
+const YM = /^(\d{4})-(\d{2})$/;
+/** "YYYY-MM" when `s` is one (month 01–12), else null. */
+export function parseMonth(s: string | null | undefined): string | null {
+  const m = YM.exec((s ?? '').trim());
+  return m && +m[2]! >= 1 && +m[2]! <= 12 ? `${m[1]}-${m[2]}` : null;
+}
+/** The month `n` months after "YYYY-MM". */
+export function addMonthsYm(ym: string, n: number): string {
+  const [y, m] = ym.split('-').map(Number) as [number, number];
+  const t = new Date(Date.UTC(y, m - 1 + n, 1));
+  return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}`;
+}
+const thisMonth = () => todayD().slice(0, 7);
+/** A value given as "YYYY-MM", "YYYY-MM-DD" or epoch ms, as "YYYY-MM" ('' when none). */
+const toYm = (v: unknown): string =>
+  typeof v === 'number' ? msToDay(v).slice(0, 7) : typeof v === 'string' ? parseMonth(v.slice(0, 7)) ?? '' : '';
+/** A value given as epoch ms, "YYYY-MM-DD" or "YYYY-MM" (its first day), as epoch ms. */
+const toMs = (v: unknown): number | null => {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v !== 'string' || !v) return null;
+  return dayToMs(v) ?? (parseMonth(v) ? dayToMs(`${v}-01`) : null);
+};
+/** Attribute ↔ property for values that are epoch ms (day mode) or "YYYY-MM" strings (month mode). */
+const msOrMonth = {
+  fromAttribute: (v: string | null): number | string | null =>
+    v == null || v === '' ? null : /^\d{4}-\d{2}(-\d{2})?$/.test(v) ? v : Number.isFinite(+v) ? +v : null,
+  toAttribute: (v: unknown) => (v == null ? null : String(v)),
+};
+
+/** "ноябрь 2026", "November 2026", "2026年11月": the month as a heading — the nominative (standalone) name where
+ * the language inflects it, without the trailing year word ("г.", "р."). */
+export function formatMonth(ym: string, locale: string = kitStrings.locale, month: 'long' | 'short' = 'long'): string {
+  const m = parseMonth(ym);
+  if (!m) return '';
+  const [y, mo] = m.split('-').map(Number) as [number, number];
+  const at = Date.UTC(y, mo - 1, 1);
+  const ps = new Intl.DateTimeFormat(locale, { month, year: 'numeric', timeZone: 'UTC' }).formatToParts(at);
+  const alone = new Intl.DateTimeFormat(locale, { month, timeZone: 'UTC' }).format(at);
+  const yi = ps.findIndex((p) => p.type === 'year');
+  return ps
+    .filter((p, i) => !(i === ps.length - 1 && i === yi + 1 && p.type === 'literal' && /^\s+\p{L}{1,3}\.?$/u.test(p.value)))
+    .map((p) => (p.type === 'month' && /\p{L}/u.test(p.value) && !/\d/.test(alone) ? alone : p.value))
+    .join('');
+}
+/** Short standalone month name for the month grid ("нояб", "Nov", "11月"). */
+export function shortMonth(mo: number, locale: string = kitStrings.locale): string {
+  return new Intl.DateTimeFormat(locale, { month: 'short', timeZone: 'UTC' }).format(Date.UTC(2026, mo - 1, 1)).replace(/\.$/, '');
+}
+
+/** Where a key moves the focus in a month grid of `cols` columns (4 × 3, or 3 × 4 on phones); null: not a move. */
+export function monthKeyMove(ym: string, key: string, cols: number): string | null {
+  const i = +ym.slice(5, 7) - 1;
+  switch (key) {
+    case 'ArrowLeft': return addMonthsYm(ym, -1);
+    case 'ArrowRight': return addMonthsYm(ym, 1);
+    case 'ArrowUp': return addMonthsYm(ym, -cols);
+    case 'ArrowDown': return addMonthsYm(ym, cols);
+    case 'PageUp': return addMonthsYm(ym, -12);
+    case 'PageDown': return addMonthsYm(ym, 12);
+    case 'Home': return addMonthsYm(ym, -(i % cols));
+    case 'End': return addMonthsYm(ym, Math.min(cols - 1 - (i % cols), 11 - i));
+    default: return null;
+  }
+}
+
+/** "YYYY-MM" outside [min, max] (each "YYYY-MM", or a day / epoch ms whose month counts). */
+export function monthDisabled(ym: string, min: unknown, max: unknown): boolean {
+  const lo = toYm(min), hi = toYm(max);
+  return (!!lo && ym < lo) || (!!hi && ym > hi);
+}
+
 export interface DateChange { value: number | null; day: string }
+/** `mode="month"`: the picked month, "YYYY-MM" ('' when cleared). */
+export interface MonthChange { value: string; month: string }
 export interface DateRangeChange { start: number | null; end: number | null; startDay: string; endDay: string }
 
 /**
@@ -289,7 +365,12 @@ export interface DateRangeChange { start: number | null; end: number | null; sta
  * Values are epoch ms at 00:00 UTC of the day (API convention); `.day` / `detail.day` give "YYYY-MM-DD" for local-day data.
  * `range`: pick start then end (`.start` / `.end`), emits `{start, end, startDay, endDay}`.
  * Keyboard in the grid: arrows ±1 day / ±1 week, PageUp/PageDown ±1 month (+Shift: year), Home/End week, Enter picks, Esc closes.
- * Form-associated: submits "YYYY-MM-DD" under `name` (a range: start and end, both under `name`), `required`
+ * `mode="month"`: a month picker instead (the native month input's job): `value` is "YYYY-MM" ('' / null: none),
+ * `min` / `max` too; the trigger reads "ноябрь 2026" / "November 2026"; the popover shows the year with
+ * previous / next year buttons over a 4 × 3 grid of months (3 × 4 on phones). Keys: arrows ±1 month / ±1 row,
+ * PageUp / PageDown ±1 year, Home / End row start / end, Enter picks, Esc closes. Emits `{ value, month }`
+ * ("YYYY-MM" both). No range in month mode.
+ * Form-associated: submits "YYYY-MM-DD" (month mode: "YYYY-MM") under `name` (a range: start and end, both under `name`), `required`
  * blocks submission while empty (a range: until both ends are set), reset returns to the `value` / `start` / `end`
  * attributes, a disabled <fieldset> disables it.
  * A text box on top accepts typed dates in the locale's order (the one the box shows: mm/dd/yyyy for en-US,
@@ -298,10 +379,12 @@ export interface DateRangeChange { start: number | null; end: number | null; sta
 export class MxDatePicker extends MxElement {
   static formAssociated = true;
   static properties = {
-    value: { type: Number },
+    value: { converter: msOrMonth },
+    mode: { type: String, reflect: true },
     name: { type: String, reflect: true },
     required: { type: Boolean, reflect: true },
     formDisabled: { state: true },
+    focusMonth: { state: true },
     start: { type: Number },
     end: { type: Number },
     range: { type: Boolean, reflect: true },
@@ -310,14 +393,18 @@ export class MxDatePicker extends MxElement {
     size: { type: String, reflect: true },
     disabled: { type: Boolean, reflect: true },
     clearable: { type: Boolean },
-    min: { type: Number },
-    max: { type: Number },
+    min: { converter: msOrMonth },
+    max: { converter: msOrMonth },
     open: { state: true },
     focusDay: { state: true },
     pending: { state: true },
     hoverDay: { state: true },
   };
-  declare value: number | null;
+  /** Epoch ms of the day (00:00 UTC); in month mode "YYYY-MM". */
+  declare value: number | string | null;
+  /** `day` (default) or `month`. */
+  declare mode: 'day' | 'month';
+  declare focusMonth: string;
   declare start: number | null;
   declare end: number | null;
   declare range: boolean;
@@ -326,8 +413,8 @@ export class MxDatePicker extends MxElement {
   declare size: 'sm' | 'md' | 'lg';
   declare disabled: boolean;
   declare clearable: boolean;
-  declare min: number | null;
-  declare max: number | null;
+  declare min: number | string | null;
+  declare max: number | string | null;
   declare open: boolean;
   declare focusDay: string;
   declare pending: string | null;
@@ -360,7 +447,15 @@ export class MxDatePicker extends MxElement {
     this.name = '';
     this.required = false;
     this.formDisabled = false;
+    this.mode = 'day';
+    this.focusMonth = thisMonth();
   }
+
+  private get isMonth(): boolean { return this.mode === 'month'; }
+  /** The day value as epoch ms (whatever form `value` was given in). */
+  private get ms(): number | null { return toMs(this.value); }
+  /** The month value, "YYYY-MM" or ''. */
+  private get ym(): string { return toYm(this.value); }
 
   /* ── form participation ── */
   get form(): HTMLFormElement | null { return this.fc.form; }
@@ -369,14 +464,14 @@ export class MxDatePicker extends MxElement {
   checkValidity(): boolean { return this.fc.checkValidity(); }
   reportValidity(): boolean { return this.fc.reportValidity(); }
   formResetCallback() {
-    const num = (a: string) => { const v = this.getAttribute(a); return v == null || v === '' || !Number.isFinite(+v) ? null : +v; };
-    this.value = num('value');
-    this.start = num('start');
-    this.end = num('end');
+    const attr = (a: string) => msOrMonth.fromAttribute(this.getAttribute(a));
+    this.value = attr('value');
+    this.start = toMs(attr('start'));
+    this.end = toMs(attr('end'));
   }
   formDisabledCallback(disabled: boolean) { this.formDisabled = disabled; }
   formStateRestoreCallback(state: unknown) {
-    if (typeof state === 'string') this.value = state ? dayToMs(state) : null;
+    if (typeof state === 'string') this.value = !state ? null : this.isMonth ? parseMonth(state) : dayToMs(state);
     else if (typeof FormData !== 'undefined' && state instanceof FormData) {
       const [s, e] = state.getAll(this.name).map((v) => (typeof v === 'string' && v ? dayToMs(v) : null));
       this.start = s ?? null;
@@ -384,16 +479,17 @@ export class MxDatePicker extends MxElement {
     }
   }
   protected updated() {
-    const missing = this.required && (this.range ? this.start == null || this.end == null : this.value == null);
+    const range = this.range && !this.isMonth;
+    const missing = this.required && (range ? this.start == null || this.end == null : this.isMonth ? !this.ym : this.ms == null);
     this.fc.sync({
-      value: this.range ? formDataOf(this.name, [msToDay(this.start), msToDay(this.end)]) : msToDay(this.value),
+      value: range ? formDataOf(this.name, [msToDay(this.start), msToDay(this.end)]) : this.isMonth ? this.ym : msToDay(this.ms),
       missing, message: kitStrings.valueMissing, anchor: this.trigger,
     });
   }
   private get off(): boolean { return this.disabled || this.formDisabled; }
 
   /** Convenience for local-day data ("YYYY-MM-DD"). */
-  get day(): string { return msToDay(this.value); }
+  get day(): string { return msToDay(this.ms); }
   set day(d: string) { this.value = d ? dayToMs(d) : null; }
 
   static styles = [base, fieldCss, css`
@@ -421,6 +517,15 @@ export class MxDatePicker extends MxElement {
     .d[aria-disabled='true'] { opacity: 0.35; cursor: default; pointer-events: none; }
     .d:focus-visible { box-shadow: var(--mx-focus-ring); }
     .foot { display: flex; justify-content: space-between; }
+    .months { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; }
+    @media (max-width: 640px) { .months { grid-template-columns: repeat(3, 1fr); } }
+    .mo { all: unset; box-sizing: border-box; height: var(--mx-control-md); display: grid; place-items: center; border-radius: var(--mx-radius-md);
+      font-size: var(--mx-text-md); color: var(--mx-text-secondary); cursor: pointer; text-transform: capitalize; }
+    .mo:hover { background: var(--mx-surface-hover); color: var(--mx-text); }
+    .mo.today { box-shadow: inset 0 0 0 1px var(--mx-border-strong); }
+    .mo[aria-selected='true'] { background: var(--mx-accent); color: var(--mx-on-accent); }
+    .mo[aria-disabled='true'] { opacity: 0.35; cursor: default; pointer-events: none; }
+    .mo:focus-visible { box-shadow: var(--mx-focus-ring); }
     .link { all: unset; cursor: pointer; font-size: var(--mx-text-sm); color: var(--mx-accent-text); padding: 4px 6px; border-radius: var(--mx-radius-sm); }
     .link:hover { background: var(--mx-surface-hover); }
     .link:focus-visible { box-shadow: var(--mx-focus-ring); }
@@ -436,12 +541,14 @@ export class MxDatePicker extends MxElement {
 
   private disabledDay(day: string): boolean {
     const ms = dayToMs(day)!;
-    return (this.min != null && ms < this.min) || (this.max != null && ms > this.max);
+    const lo = toMs(this.min), hi = toMs(this.max);
+    return (lo != null && ms < lo) || (hi != null && ms > hi);
   }
 
   show() {
     if (this.off || this.open) return;
-    const cur = this.range ? msToDay(this.start) : msToDay(this.value);
+    if (this.isMonth) this.focusMonth = this.ym || thisMonth();
+    const cur = this.range ? msToDay(this.start) : msToDay(this.ms);
     this.focusDay = cur || todayD();
     this.pending = null;
     this.open = true;
@@ -456,12 +563,45 @@ export class MxDatePicker extends MxElement {
   hide() { this.pop?.hide(); }
 
   private focusGrid() {
-    (this.renderRoot.querySelector(`.d[data-day="${this.focusDay}"]`) as HTMLElement | null)?.focus();
+    const sel = this.isMonth ? `.mo[data-month="${this.focusMonth}"]` : `.d[data-day="${this.focusDay}"]`;
+    (this.renderRoot.querySelector(sel) as HTMLElement | null)?.focus();
+  }
+
+  private commitMonth(ym: string) {
+    if (ym && monthDisabled(ym, this.min, this.max)) return;
+    this.value = ym || null;
+    this.emit<MonthChange>('mx-change', { value: ym, month: ym });
+    this.hide();
+  }
+
+  private onMonthKey(e: KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.commitMonth(this.focusMonth); return; }
+    const narrow = typeof matchMedia === 'function' && matchMedia('(max-width: 640px)').matches;
+    const next = monthKeyMove(this.focusMonth, e.key, narrow ? 3 : 4);
+    if (!next) return;
+    e.preventDefault();
+    this.focusMonth = next;
+    this.updateComplete.then(() => this.focusGrid());
+  }
+
+  private monthGrid() {
+    const y = this.focusMonth.slice(0, 4);
+    const cur = this.ym, now = thisMonth();
+    return html`<div class="months" role="grid" aria-labelledby="${this.uid}-m" @keydown=${this.onMonthKey}>
+      ${Array.from({ length: 12 }, (_, i) => {
+        const ym = `${y}-${pad(i + 1)}`;
+        const off = monthDisabled(ym, this.min, this.max);
+        return html`<button type="button" role="gridcell" class="mo ${ym === now ? 'today' : ''}" data-month=${ym}
+          tabindex=${ym === this.focusMonth ? 0 : -1} aria-selected=${ym === cur ? 'true' : 'false'} aria-disabled=${off ? 'true' : 'false'}
+          aria-label=${formatMonth(ym)} @click=${() => this.commitMonth(ym)}>${shortMonth(i + 1)}</button>`;
+      })}
+    </div>`;
   }
 
   private commitSingle(day: string) {
-    this.value = day ? dayToMs(day) : null;
-    this.emit<DateChange>('mx-change', { value: this.value, day });
+    const value = day ? dayToMs(day) : null;
+    this.value = value;
+    this.emit<DateChange>('mx-change', { value, day });
     this.hide();
   }
 
@@ -528,7 +668,7 @@ export class MxDatePicker extends MxElement {
     const firstWd = new Date(dayToMs(first)!).getUTCDay();
     const lead = (firstWd - kitStrings.weekStart + 7) % 7;
     const startDay = addDaysD(first, -lead);
-    const sel = this.range ? [msToDay(this.start), msToDay(this.end)] : [msToDay(this.value)];
+    const sel = this.range ? [msToDay(this.start), msToDay(this.end)] : [msToDay(this.ms)];
     let lo = '', hi = '';
     if (this.range) {
       if (this.pending) { const h = this.hoverDay ?? this.pending; [lo, hi] = this.pending <= h ? [this.pending, h] : [h, this.pending]; }
@@ -556,19 +696,24 @@ export class MxDatePicker extends MxElement {
       if (!s && !e) return html`<span class="val ph">${this.placeholder || kitStrings.pickDate}</span>`;
       return html`<span class="val">${this.fmt(s)} – ${this.fmt(e)}</span>`;
     }
-    const d = msToDay(this.value);
+    if (this.isMonth) {
+      const m = this.ym;
+      return m ? html`<span class="val">${formatMonth(m)}</span>` : html`<span class="val ph">${this.placeholder || kitStrings.pickMonth}</span>`;
+    }
+    const d = msToDay(this.ms);
     return d ? html`<span class="val">${this.fmt(d)}</span>` : html`<span class="val ph">${this.placeholder || kitStrings.pickDate}</span>`;
   }
 
   render() {
     const f = parts(this.focusDay);
     const monthLabel = new Intl.DateTimeFormat(kitStrings.locale, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(Date.UTC(f.y, f.m, 1));
-    const has = this.range ? this.start != null : this.value != null;
+    const has = this.isMonth ? !!this.ym : this.range ? this.start != null : this.ms != null;
+    const pickLabel = this.isMonth ? kitStrings.pickMonth : kitStrings.pickDate;
     const hint = kitStrings.dateFormatHint || dateHint(kitStrings.locale);
     return html`<div class="field">
       ${this.label ? html`<label id="${this.uid}-l" @click=${() => this.trigger?.focus()}>${this.label}</label>` : nothing}
       <button class="trigger" part="trigger" type="button" aria-haspopup="dialog" aria-expanded=${this.open ? 'true' : 'false'}
-        aria-labelledby=${this.label ? `${this.uid}-l ${this.uid}-v` : nothing} aria-label=${this.label ? nothing : this.placeholder || kitStrings.pickDate}
+        aria-labelledby=${this.label ? `${this.uid}-l ${this.uid}-v` : nothing} aria-label=${this.label ? nothing : this.placeholder || pickLabel}
         aria-required=${this.required ? 'true' : nothing} ?disabled=${this.off} @click=${() => (this.open ? this.hide() : this.show())}
         @keydown=${(e: KeyboardEvent) => { if (!this.open && (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); this.show(); } }}>
         <span class="ic"><mx-icon name="calendar" size="14"></mx-icon></span>
@@ -576,10 +721,22 @@ export class MxDatePicker extends MxElement {
       </button>
       <mx-popover @mx-open=${(e: Event) => e.stopPropagation()}
         @mx-close=${(e: Event) => { e.stopPropagation(); this.open = false; this.trigger?.focus(); }}>
-        ${this.open ? html`<div class="cal" role="dialog" aria-modal="false" aria-label=${this.label || kitStrings.pickDate}
+        ${this.open && this.isMonth ? html`<div class="cal" role="dialog" aria-modal="false" aria-label=${this.label || pickLabel}
+            @keydown=${(e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.hide(); } }}>
+          <div class="top">
+            <button class="nav" type="button" aria-label=${kitStrings.prevYear} @click=${() => { this.focusMonth = addMonthsYm(this.focusMonth, -12); }}><mx-icon name="chevron-left" size="14"></mx-icon></button>
+            <b id="${this.uid}-m" aria-live="polite">${this.focusMonth.slice(0, 4)}</b>
+            <button class="nav" type="button" aria-label=${kitStrings.nextYear} @click=${() => { this.focusMonth = addMonthsYm(this.focusMonth, 12); }}><mx-icon name="chevron-right" size="14"></mx-icon></button>
+          </div>
+          ${this.monthGrid()}
+          <div class="foot">
+            <button class="link" type="button" @click=${() => { const t = thisMonth(); this.focusMonth = t; this.commitMonth(t); }}>${kitStrings.thisMonth}</button>
+            ${this.clearable && has ? html`<button class="link" type="button" @click=${() => this.commitMonth('')}>${kitStrings.clear}</button>` : nothing}
+          </div>
+        </div>` : this.open ? html`<div class="cal" role="dialog" aria-modal="false" aria-label=${this.label || pickLabel}
             @keydown=${(e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.hide(); } }}>
           <input class="typed" aria-label=${hint} placeholder=${hint}
-            .value=${this.range ? '' : this.value != null ? this.fmt(msToDay(this.value), { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''}
+            .value=${this.range ? '' : this.ms != null ? this.fmt(msToDay(this.ms), { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''}
             @input=${this.onTyped} @keydown=${this.onTypedKey} />
           <div class="top">
             <button class="nav" type="button" aria-label=${kitStrings.prevMonth} @click=${() => { this.focusDay = addMonthsD(this.focusDay, -1); }}><mx-icon name="chevron-left" size="14"></mx-icon></button>
