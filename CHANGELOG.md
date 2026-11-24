@@ -4,6 +4,10 @@
 
 Hardening.
 
+- Light theme contrast (WCAG): `--mx-text-muted` → `--mx-gray-550` #6b6c70 (5.2:1 on white, was 4.1), `--mx-text-faint`
+  → `--mx-gray-450` #8a8a8a (3.5:1, was 2.5; placeholders and hints only), `--mx-danger` → `--mx-red-600` #cf3036
+  (5.1:1, was 3.4). New primitives `--mx-gray-450`, `--mx-gray-550`, `--mx-red-600`; the dark theme is unchanged.
+  A test computes the ratios from tokens.css.
 - SyncEngine `maxRetries` defaults to 8 (`DEFAULT_MAX_RETRIES`) instead of no limit: a write the server keeps
   failing (5xx / 408 / 429) is rejected after that, rolled back and reported on `rejected$`, and the writes behind it
   go out (before, one failing write blocked the queue forever). Network failures still keep writes queued. Pass

@@ -8,7 +8,9 @@
   --mx-gray-200: #e0e0e0;
   --mx-gray-300: #c4c4c6;
   --mx-gray-400: #a3a3a3;
+  --mx-gray-450: #8a8a8a;
   --mx-gray-500: #7d7e82;
+  --mx-gray-550: #6b6c70;
   --mx-gray-600: #5a5b5f;
   --mx-gray-700: #3a3b3f;
   --mx-gray-800: #2c2d30;
@@ -24,6 +26,7 @@
   --mx-indigo-700: #2a27c3;
 
   --mx-red-500: #f2555a;
+  --mx-red-600: #cf3036;
   --mx-orange-500: #f2994a;
   --mx-yellow-500: #f2c94c;
   --mx-green-500: #4cb782;
@@ -164,8 +167,11 @@
   --mx-border-strong: var(--mx-gray-300);
   --mx-text: var(--mx-gray-950);
   --mx-text-secondary: var(--mx-gray-700);
-  --mx-text-muted: var(--mx-gray-500);
-  --mx-text-faint: var(--mx-gray-400);
+  /* WCAG on white and --mx-bg: muted ≥ 4.5:1 (body text), faint ≥ 3:1 (placeholders, hints — never the only
+   * carrier of meaning), danger ≥ 4.5:1 (error messages). Checked in test/contrast.test.ts. */
+  --mx-text-muted: var(--mx-gray-550);
+  --mx-text-faint: var(--mx-gray-450);
+  --mx-danger: var(--mx-red-600);
   --mx-accent-text: var(--mx-indigo-700);
   --mx-focus-ring: 0 0 0 2px var(--mx-bg), 0 0 0 4px var(--mx-indigo-500);
   --mx-shadow-popover: 0 0 0 1px var(--mx-gray-200), 0 12px 32px rgba(29, 30, 31, 0.14);
