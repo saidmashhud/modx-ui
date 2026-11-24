@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Observable, Subject } from 'rxjs';
-import { HttpError, memoryStorage, SyncEngine, type Change, type StreamSignal, type Transport } from '../src/index.js';
+import { HttpError, localStorageSync, memoryStorage, mergeSnapshots, snapshotMismatch, SyncEngine, type Change, type PendingWrite, type SnapshotDiscard, type StreamSignal, type SyncOptions, type SyncSnapshot, type Transport } from '../src/index.js';
 
 interface Todo { id: string; title: string; done: boolean }
 interface Model { todos: Todo }
@@ -109,6 +109,7 @@ class FakeServer implements Transport {
   }
 }
 
+type SyncStorage = NonNullable<SyncOptions<Model>['storage']>;
 const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
 async function until(fn: () => boolean, ms = 1000) {
   const t = Date.now();
@@ -118,8 +119,9 @@ async function until(fn: () => boolean, ms = 1000) {
   }
 }
 
-function engine(server: FakeServer, storage = memoryStorage<Model>()) {
+function engine(server: FakeServer, storage: SyncStorage = memoryStorage<Model>(), extra: Partial<SyncOptions<Model>> = {}) {
   return new SyncEngine<Model>({
+    ...extra,
     transport: server,
     collections: ['todos'],
     bootstrapPath: '/api/bootstrap',
@@ -653,5 +655,129 @@ describe('SyncEngine hooks', () => {
     await off.whenIdle();
     expect(srv.writeHeaders[1]).toEqual({});
     off.stop();
+  });
+});
+
+describe('SyncEngine snapshots: owner, schema version, several tabs', () => {
+  /** A write queued while offline, persisted, engine stopped. */
+  async function queuedOffline(storage: SyncStorage, extra: Partial<SyncOptions<Model>>, title: string, srv = new FakeServer()) {
+    const e = engine(srv, storage, extra);
+    await e.start();
+    await until(() => e.state.status === 'live');
+    srv.offline = true;
+    srv.drop();
+    e.create('todos', { title, done: false });
+    await until(() => e.state.status === 'offline');
+    e.stop();
+    return srv;
+  }
+
+  it("another user's queued writes are discarded, never replayed, and reported", async () => {
+    const storage = memoryStorage<Model>();
+    const srv = await queuedOffline(storage, { owner: 'usr_a' }, 'secret of A');
+    expect(storage.value?.owner).toBe('usr_a');
+    expect(storage.value?.v).toBe(1);
+    srv.offline = false;
+    const b = engine(srv, storage, { owner: 'usr_b' });
+    const seen: SnapshotDiscard[] = [];
+    b.discarded$.subscribe((d) => seen.push(d));
+    await b.start();
+    await until(() => b.state.status === 'live');
+    await b.whenIdle();
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.reason).toBe('owner');
+    expect(seen[0]!.owner).toBe('usr_a');
+    expect(seen[0]!.pending.map((w) => w.data?.title)).toEqual(['secret of A']);
+    expect([...srv.rows.values()]).toEqual([]);
+    expect(Object.values(b.tables.todos)).toEqual([]);
+    expect(storage.value?.owner).toBe('usr_b');
+    expect(storage.value?.pending).toEqual([]);
+    b.stop();
+  });
+
+  it('the same owner hydrates and replays; a snapshot without owner is not trusted by an engine with one', async () => {
+    const storage = memoryStorage<Model>();
+    const srv = await queuedOffline(storage, { owner: 'usr_a' }, 'mine');
+    srv.offline = false;
+    const again = engine(srv, storage, { owner: 'usr_a' });
+    const seen: SnapshotDiscard[] = [];
+    again.discarded$.subscribe((d) => seen.push(d));
+    await again.start();
+    await again.whenIdle();
+    expect(seen).toEqual([]);
+    expect([...srv.rows.values()].map((r) => r.title)).toEqual(['mine']);
+    again.stop();
+    expect(snapshotMismatch({ seq: 1, base: {} }, { v: 1, owner: 'usr_a' })).toBe('owner');
+    expect(snapshotMismatch({ seq: 1, base: {} }, { v: 1, owner: null })).toBeNull(); /* earlier snapshots, no owner set */
+  });
+
+  it('a snapshot of another schema version is discarded', async () => {
+    const storage = memoryStorage<Model>();
+    const srv = await queuedOffline(storage, {}, 'old shape');
+    srv.offline = false;
+    const e = engine(srv, storage, { schemaVersion: 2 });
+    const seen: SnapshotDiscard[] = [];
+    e.discarded$.subscribe((d) => seen.push(d));
+    await e.start();
+    await e.whenIdle();
+    expect(seen.map((d) => [d.reason, d.v, d.pending.length])).toEqual([['version', 1, 1]]);
+    expect([...srv.rows.values()]).toEqual([]);
+    expect(storage.value?.v).toBe(2);
+    e.stop();
+  });
+
+  const w = (opId: string, title = opId): PendingWrite => ({ opId, entity: 'todos', kind: 'create', id: `tmp_${opId}`, data: { title }, attempts: 0 });
+  const snap = (p: Partial<SyncSnapshot<Model>>): SyncSnapshot<Model> => ({ v: 1, owner: 'u', seq: 1, base: { todos: {} }, pending: [], idMap: {}, done: [], ...p });
+
+  it('mergeSnapshots: union of both queues by opId, minus finished writes; foreign snapshots are replaced', () => {
+    const stored = snap({ pending: [w('a'), w('b')], done: ['x'], idMap: { t1: 'r1' } });
+    const next = snap({ pending: [w('b'), w('c')], done: ['a'], idMap: { t2: 'r2' } });
+    const m = mergeSnapshots(stored, next);
+    expect(m.pending.map((x) => x.opId)).toEqual(['b', 'c']); /* a finished here, b once, c ours */
+    expect(m.done).toEqual(['x', 'a']);
+    expect(m.idMap).toEqual({ t1: 'r1', t2: 'r2' });
+    /* the other tab finished b: our stale copy of it is not written back */
+    expect(mergeSnapshots(snap({ pending: [], done: ['b'] }), snap({ pending: [w('b'), w('c')] })).pending.map((x) => x.opId)).toEqual(['c']);
+    /* the base of whichever saw more of the feed */
+    const newer = mergeSnapshots(snap({ seq: 9, base: { todos: { k: { id: 'k', title: 'k', done: false } } } }), snap({ seq: 3 }));
+    expect([newer.seq, Object.keys(newer.base.todos)]).toEqual([9, ['k']]);
+    for (const foreign of [snap({ owner: 'other', pending: [w('z')] }), snap({ v: 2, pending: [w('z')] }), 'junk', null])
+      expect(mergeSnapshots(foreign, next)).toBe(next);
+  });
+
+  it('localStorageSync: two tabs queueing offline keep both queues; the key is scoped by owner', async () => {
+    const mem = new Map<string, string>();
+    const ls = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => { mem.set(k, v); }, removeItem: (k: string) => { mem.delete(k); } };
+    const had = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+    Object.defineProperty(globalThis, 'localStorage', { value: ls, configurable: true });
+    try {
+      const srv = new FakeServer();
+      const tab1 = engine(srv, localStorageSync<Model>('app', { owner: 'u1' }), { owner: 'u1' });
+      const tab2 = engine(srv, localStorageSync<Model>('app', { owner: 'u1' }), { owner: 'u1' });
+      await tab1.start();
+      await tab2.start();
+      await until(() => tab1.state.status === 'live' && tab2.state.status === 'live');
+      srv.offline = true;
+      srv.drop();
+      tab1.create('todos', { title: 'from tab 1', done: false });
+      tab2.create('todos', { title: 'from tab 2', done: false });
+      await until(() => tab1.state.status === 'offline' && tab2.state.status === 'offline');
+      tab1.stop();
+      tab2.stop();
+      expect([...mem.keys()]).toEqual(['app:u1']);
+      const stored = JSON.parse(mem.get('app:u1')!) as SyncSnapshot<Model>;
+      expect(stored.pending.map((x) => x.data?.title).sort()).toEqual(['from tab 1', 'from tab 2']);
+      /* a reload sends both, once each */
+      srv.offline = false;
+      const reload = engine(srv, localStorageSync<Model>('app', { owner: 'u1' }), { owner: 'u1' });
+      await reload.start();
+      await reload.whenIdle();
+      expect([...srv.rows.values()].map((r) => r.title).sort()).toEqual(['from tab 1', 'from tab 2']);
+      await until(() => (JSON.parse(mem.get('app:u1')!) as SyncSnapshot<Model>).pending.length === 0);
+      reload.stop();
+    } finally {
+      if (had) Object.defineProperty(globalThis, 'localStorage', had);
+      else delete (globalThis as { localStorage?: unknown }).localStorage;
+    }
   });
 });

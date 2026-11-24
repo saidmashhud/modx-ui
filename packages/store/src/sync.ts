@@ -16,7 +16,9 @@ import { emptyTables, patchOne, putOne, removeOne, type ID, type TablesOf } from
  *                ──► every attempt carries `Idempotency-Key: <opId>`: a retry of a write the server already applied
  *                    (its answer was lost) is answered from the server's record, never applied twice
  *   storage (optional) keeps base + seq + queue, so a reload starts from the last state and replays queued
- *   writes; undo / redo turn into ordinary writes.
+ *   writes; undo / redo turn into ordinary writes. The snapshot carries a schema version (`v`) and its `owner`
+ *   (user / workspace): a snapshot of another owner or version is never hydrated, its queue is discarded
+ *   (`discarded$`), so one person's queued writes never replay in another's session.
  *
  * Hooks for apps with more than plain collections: `mapBootstrap` (bootstrap payload → tables), `events$` (named
  * SSE events that are not changes), `changes$` (applied changes, for derived counters), `bootstrapped$`,
@@ -80,11 +82,33 @@ export interface WriteOptions {
   history?: boolean;
 }
 
+/** Version of the snapshot format the engine writes (the app's own schema version is `SyncOptions.schemaVersion`). */
+export const SNAPSHOT_VERSION = 1;
+/** Ids of settled / rejected writes a snapshot remembers, so a merge across tabs never brings a finished write back. */
+const DONE_LIMIT = 256;
+
 export interface SyncSnapshot<M> {
+  /** Schema version (`SyncOptions.schemaVersion`); missing in snapshots written before it existed (read as 1). */
+  v?: number;
+  /** Whose data this is (`SyncOptions.owner`); missing or null: no owner was set. */
+  owner?: string | null;
   seq: number;
   base: TablesOf<M>;
   pending: PendingWrite[];
   idMap: Record<ID, ID>;
+  /** opIds of writes that recently settled or were rejected (newest last). */
+  done?: string[];
+}
+
+/** A stored snapshot the engine refused: written for another owner or schema version. Its queued writes are
+ * dropped, never sent. */
+export interface SnapshotDiscard {
+  reason: 'owner' | 'version';
+  /** The writes that were queued in it. */
+  pending: PendingWrite[];
+  /** The snapshot's owner and version. */
+  owner: string | null;
+  v: number;
 }
 
 /** Where the client copy survives reloads (IndexedDB, localStorage, memory...). */
@@ -102,18 +126,30 @@ export function memoryStorage<M>(): SyncStorage<M> & { value: SyncSnapshot<M> | 
   return st;
 }
 
-export function localStorageSync<M>(key: string): SyncStorage<M> {
+export interface LocalStorageSyncOptions {
+  /** Scope the key per user / workspace (`<key>:<owner>`). Pass the same value as the engine's `owner`. */
+  owner?: string;
+}
+
+/**
+ * localStorage under `key` (`key:owner` with `owner`). Every save merges with what is stored — another tab of the
+ * same app may have queued writes since — keeping the union of both queues by opId, minus writes either tab has
+ * finished (`mergeSnapshots`); snapshots of another owner or version are overwritten, never merged.
+ */
+export function localStorageSync<M>(key: string, opts: LocalStorageSyncOptions = {}): SyncStorage<M> {
+  const k = opts.owner ? `${key}:${opts.owner}` : key;
+  const read = (): unknown => {
+    try {
+      const raw = globalThis.localStorage?.getItem(k);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
   return {
-    load: () => {
-      try {
-        const raw = globalThis.localStorage?.getItem(key);
-        return raw ? (JSON.parse(raw) as SyncSnapshot<M>) : null;
-      } catch {
-        return null;
-      }
-    },
+    load: () => read() as SyncSnapshot<M> | null,
     save: (s) => {
-      try { globalThis.localStorage?.setItem(key, JSON.stringify(s)); } catch { /* quota / private mode */ }
+      try { globalThis.localStorage?.setItem(k, JSON.stringify(mergeSnapshots(read(), s))); } catch { /* quota / private mode */ }
     },
   };
 }
@@ -130,6 +166,13 @@ export interface SyncOptions<M> {
   eventsPath: string;
   endpoints: { [K in keyof M & string]?: Endpoint };
   storage?: SyncStorage<M>;
+  /** Whose data the engine holds — a user id, or `user@workspace`. Stored with the snapshot; a stored snapshot of
+   * another owner (or of none, when this is set) is not hydrated and its queued writes are discarded
+   * (`discarded$`). Set it whenever the storage outlives a session (sign-out, account switch). */
+  owner?: string;
+  /** Version of the app's snapshot schema (default 1). Bump it when stored rows or pending writes change shape:
+   * snapshots of another version are discarded the same way. */
+  schemaVersion?: number;
   /** Coalesce storage writes: save at most once per this many ms (default 0: on every change). */
   saveDebounceMs?: number;
   /** Sent as X-Client-Id with writes; changes carrying it are this client's own echoes. */
@@ -262,13 +305,52 @@ export function normalizeSnapshot<M>(raw: unknown, collections: readonly (keyof 
   if (!collections.every((c) => isObj(src[c as string]))) return null;
   const base = {} as Record<keyof M, unknown>;
   for (const c of collections) base[c] = src[c as string];
-  const pending = (Array.isArray(raw.pending) ? raw.pending : []).filter((w): w is PendingWrite =>
+  const pending = pendingOf(raw.pending);
+  const idMap: Record<ID, ID> = {};
+  if (isObj(raw.idMap)) for (const [k, v] of Object.entries(raw.idMap)) if (typeof v === 'string') idMap[k] = v;
+  return {
+    v: typeof raw.v === 'number' ? raw.v : 1, owner: typeof raw.owner === 'string' ? raw.owner : null,
+    seq: raw.seq, base: base as TablesOf<M>, pending, idMap, done: doneOf(raw.done),
+  };
+}
+
+const pendingOf = (raw: unknown): PendingWrite[] =>
+  (Array.isArray(raw) ? raw : []).filter((w): w is PendingWrite =>
     isObj(w) && typeof w.opId === 'string' && typeof w.entity === 'string' && typeof w.id === 'string'
     && (w.kind === 'create' || w.kind === 'update' || w.kind === 'remove' || (w.kind === 'call' && isObj(w.call))))
     .map((w) => ({ ...w, attempts: typeof w.attempts === 'number' ? w.attempts : 0 }));
-  const idMap: Record<ID, ID> = {};
-  if (isObj(raw.idMap)) for (const [k, v] of Object.entries(raw.idMap)) if (typeof v === 'string') idMap[k] = v;
-  return { seq: raw.seq, base: base as TablesOf<M>, pending, idMap };
+const doneOf = (raw: unknown): string[] => (Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : []);
+
+/** Why a stored snapshot does not belong to this engine (another schema version or owner), or null when it does.
+ * A snapshot without `v` reads as version 1, one without `owner` as no owner. */
+export function snapshotMismatch(raw: unknown, want: { v: number; owner: string | null }): 'version' | 'owner' | null {
+  if (!isObj(raw)) return null;
+  const v = typeof raw.v === 'number' ? raw.v : 1;
+  if (v !== want.v) return 'version';
+  const owner = typeof raw.owner === 'string' ? raw.owner : null;
+  return owner !== want.owner ? 'owner' : null;
+}
+
+/**
+ * The snapshot to store when `stored` may have been written by another tab since: `next`, with the queued writes of
+ * both (by opId; `next`'s order first), minus writes either side has finished (`done`), and the base of whichever
+ * saw the higher seq. A stored snapshot of another owner or version is replaced, never merged. For custom storages:
+ * read, merge, write in one go.
+ */
+export function mergeSnapshots<M>(stored: unknown, next: SyncSnapshot<M>): SyncSnapshot<M> {
+  if (!isObj(stored) || snapshotMismatch(stored, { v: next.v ?? 1, owner: next.owner ?? null })) return next;
+  const done = [...new Set([...doneOf(stored.done), ...(next.done ?? [])])].slice(-DONE_LIMIT);
+  const gone = new Set(done);
+  const mine = new Set(next.pending.map((w) => w.opId));
+  const pending = [...next.pending.filter((w) => !gone.has(w.opId)), ...pendingOf(stored.pending).filter((w) => !mine.has(w.opId) && !gone.has(w.opId))];
+  const storedIds: Record<ID, ID> = {};
+  if (isObj(stored.idMap)) for (const [k, v] of Object.entries(stored.idMap)) if (typeof v === 'string') storedIds[k] = v;
+  const newer = typeof stored.seq === 'number' && stored.seq > next.seq && isObj(stored.base);
+  return {
+    ...next,
+    ...(newer ? { seq: stored.seq as number, base: { ...next.base, ...(stored.base as object) } as TablesOf<M> } : {}),
+    pending, done, idMap: { ...storedIds, ...next.idMap },
+  };
 }
 
 /** Drop a settled write, fold the server's rows into base, and follow a created row's new id. */
@@ -354,6 +436,9 @@ export class SyncEngine<M> {
   /** The server refused us (4xx on bootstrap or on the reconnect probe): the engine has stopped. Emitted before
    * the status turns to 'error'. */
   readonly lost$ = new Subject<HttpError>();
+  /** A stored snapshot belonged to another owner or schema version: it was not hydrated and its queued writes were
+   * dropped (warn the person if `pending` is not empty). Emitted from `start()`. */
+  readonly discarded$ = new Subject<SnapshotDiscard>();
   private readonly opts: SyncOptions<M>;
   private readonly view: (s: SyncState<M>) => TablesOf<M>;
   private stream?: Subscription;
@@ -369,6 +454,8 @@ export class SyncEngine<M> {
   private sendAttempt = 0;
   private opCounter = 0;
   private serverFailures = new Map<string, number>();
+  /** opIds of writes this engine finished (saved with the snapshot for cross-tab merges). */
+  private done: string[] = [];
   private undoStack: HistoryEntry[] = [];
   private redoStack: HistoryEntry[] = [];
   private idle: (() => void)[] = [];
@@ -409,9 +496,16 @@ export class SyncEngine<M> {
     let raw: unknown = null;
     try { raw = this.opts.storage ? await this.opts.storage.load() : null; } catch { raw = null; }
     if (!this.running) return;
-    const snap = normalizeSnapshot<M>(raw, this.opts.collections);
-    if (snap) this.dispatch({ type: 'hydrate', snap });
+    const reason = snapshotMismatch(raw, this.owner());
+    const snap = reason ? null : normalizeSnapshot<M>(raw, this.opts.collections);
+    if (snap) { this.done = snap.done ?? []; this.dispatch({ type: 'hydrate', snap }); }
     if (this.opts.storage) this.persist(this.opts.storage);
+    if (reason) {
+      const r = raw as Record<string, unknown>;
+      /* overwrite the other owner's data now, not at the next change */
+      this.saveNow?.();
+      this.discarded$.next({ reason, pending: pendingOf(r.pending), owner: typeof r.owner === 'string' ? r.owner : null, v: typeof r.v === 'number' ? r.v : 1 });
+    }
     globalThis.addEventListener?.('offline', this.onOffline);
     globalThis.addEventListener?.('online', this.onOnline);
     if (!snap) await this.bootstrap();
@@ -513,7 +607,19 @@ export class SyncEngine<M> {
   /* ───────── internals ───────── */
 
   private dispatch(a: SyncAction<M>) {
+    if (a.type === 'settled' || a.type === 'rejected') {
+      /* before the dispatch: the save it triggers must already know. A rejected create takes the writes that
+       * depended on its row along (as the reducer does). */
+      const w = this.state.pending.find((x) => x.opId === a.opId);
+      const dropId = a.type === 'rejected' && w?.kind === 'create' ? w.id : null;
+      const finished = this.state.pending.filter((x) => x.opId === a.opId || (dropId && x.id === dropId)).map((x) => x.opId);
+      if (finished.length) this.done = [...this.done, ...finished].slice(-DONE_LIMIT);
+    }
     this.store.dispatch(a as SyncAction<M> & Action);
+  }
+
+  private owner(): { v: number; owner: string | null } {
+    return { v: this.opts.schemaVersion ?? SNAPSHOT_VERSION, owner: this.opts.owner ?? null };
   }
 
   private resolve(w: Draft): Draft {
@@ -546,7 +652,8 @@ export class SyncEngine<M> {
       this.saveTimer = undefined;
       const s = this.state;
       try {
-        const r = storage.save({ seq: s.seq, base: s.base, pending: [...s.pending], idMap: s.idMap });
+        const { v, owner } = this.owner();
+        const r = storage.save({ v, owner, seq: s.seq, base: s.base, pending: [...s.pending], idMap: s.idMap, done: [...this.done] });
         if (r && typeof (r as Promise<void>).catch === 'function') (r as Promise<void>).catch(() => {});
       } catch { /* storage is a convenience */ }
     };

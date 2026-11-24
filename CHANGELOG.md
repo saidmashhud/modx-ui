@@ -4,6 +4,16 @@
 
 Hardening.
 
+- **SyncEngine snapshots know whose they are.** Snapshots carry `v` (schema version, `schemaVersion` option,
+  default 1) and `owner` (`owner` option: user id or `user@workspace`). A stored snapshot of another owner or version
+  is not hydrated: its queued writes are dropped, never sent, and reported on `discarded$` (`{ reason, pending,
+  owner, v }`) so the app can warn; the other owner's data is overwritten at once. Snapshots written before (no
+  `v`, no `owner`) still hydrate into engines without an `owner`. Breaking only for engines that now set `owner`:
+  their first start discards the unowned snapshot.
+- **Several tabs.** `localStorageSync(key, { owner })` scopes the key (`key:owner`) and merges on every save with
+  what another tab stored: the union of both queues by opId, minus writes either tab finished (snapshots keep the
+  recent `done` opIds), the base of whichever saw the higher seq. `mergeSnapshots(stored, next)` and
+  `snapshotMismatch(raw, { v, owner })` are exported for custom storages.
 - **Forms.** `mx-input`, `mx-select`, `mx-date-picker`, `mx-switch` and `mx-button` are form-associated custom
   elements (ElementInternals). Inside a `<form>` the fields submit under `name` (`mx-select multiple` and a date range
   as repeated entries, dates as `YYYY-MM-DD`, `mx-switch` like a checkbox with `value`, default "on"), `required`
