@@ -5,6 +5,12 @@ import type { IsoScene } from './illustration.js';
 import './icons.js';
 
 /* ───────────── mx-kbd ───────────── */
+/**
+ * A key cap for shortcuts ("⌘", "K").
+ *
+ * @tagname mx-kbd
+ * @slot - The key.
+ */
 export class MxKbd extends MxElement {
   static styles = [base, css`
     :host {
@@ -20,10 +26,18 @@ export class MxKbd extends MxElement {
 define('mx-kbd', MxKbd);
 
 /* ───────────── mx-avatar ───────────── */
+/**
+ * Initials on a colour disc (`role="img"` named by `name`); without a name, a dashed "unassigned" placeholder.
+ *
+ * @tagname mx-avatar
+ */
 export class MxAvatar extends MxElement {
   static properties = { name: { type: String }, color: { type: String }, size: { type: Number } };
+  /** Full name: initials and the accessible name. */
   declare name: string;
+  /** Disc colour (CSS colour). */
   declare color: string;
+  /** Diameter in px. */
   declare size: number;
   constructor() {
     super();
@@ -62,10 +76,16 @@ const STATUS_COLOR: Record<StatusKind, string> = {
   canceled: 'var(--mx-text-faint)',
 };
 
-/** Progress-ring status glyph: the fill grows as work advances along the pipeline. */
+/**
+ * Progress-ring status glyph: the fill grows as work advances along the pipeline.
+ *
+ * @tagname mx-status-icon
+ */
 export class MxStatusIcon extends MxElement {
   static properties = { status: { type: String }, size: { type: Number } };
+  /** backlog, todo, in_progress, in_review, done or canceled. */
   declare status: StatusKind;
+  /** px. */
   declare size: number;
   constructor() {
     super();
@@ -96,9 +116,16 @@ export class MxStatusIcon extends MxElement {
 define('mx-status-icon', MxStatusIcon);
 
 /* ───────────── mx-priority-icon ───────────── */
+/**
+ * Priority glyph: 0 none (three dashes), 1 urgent (filled square with "!"), 2–4 high / medium / low as lit bars. Decorative: name it in text next to it.
+ *
+ * @tagname mx-priority-icon
+ */
 export class MxPriorityIcon extends MxElement {
   static properties = { priority: { type: Number }, size: { type: Number } };
+  /** 0 none, 1 urgent, 2 high, 3 medium, 4 low. */
   declare priority: number;
+  /** px. */
   declare size: number;
   constructor() {
     super();
@@ -126,10 +153,21 @@ export class MxPriorityIcon extends MxElement {
 define('mx-priority-icon', MxPriorityIcon);
 
 /* ───────────── mx-chip (labels, filters) ───────────── */
+/**
+ * A label or filter chip: an optional colour dot, text, and a remove button.
+ *
+ * @tagname mx-chip
+ * @fires mx-remove - The remove button was pressed (the click does not reach the chip).
+ * @slot - The text.
+ * @slot icon - Shown before the text when there is no `color`.
+ */
 export class MxChip extends MxElement {
   static properties = { color: { type: String }, removable: { type: Boolean }, interactive: { type: Boolean, reflect: true } };
+  /** Colour of the leading dot. */
   declare color: string;
+  /** Show a remove button (fires `mx-remove`). */
   declare removable: boolean;
+  /** Hover state and pointer cursor (the chip is clickable). */
   declare interactive: boolean;
   constructor() {
     super();
@@ -160,8 +198,14 @@ export class MxChip extends MxElement {
 define('mx-chip', MxChip);
 
 /* ───────────── mx-spinner ───────────── */
+/**
+ * Loading ring (`role="status"`, named by `kitStrings.loading`); breathes instead of turning for reduced motion.
+ *
+ * @tagname mx-spinner
+ */
 export class MxSpinner extends MxElement {
   static properties = { size: { type: Number } };
+  /** px. */
   declare size: number;
   constructor() {
     super();
@@ -187,11 +231,18 @@ const SCENE_FOR: Record<string, IsoScene> = {
 /**
  * Empty state: an isometric scene (the site's line work, picked from `icon`, or `scene`), a display heading, text and
  * an action. `scene="none"` keeps the plain icon glyph.
+ *
+ * @tagname mx-empty
+ * @slot - The explanation under the heading.
+ * @slot action - A call to action (an mx-button).
  */
 export class MxEmpty extends MxElement {
   static properties = { icon: { type: String }, heading: { type: String }, scene: { type: String } };
+  /** Icon name; also picks the isometric scene. */
   declare icon: string;
+  /** The heading. */
   declare heading: string;
+  /** Scene override (stack, plan, columns, module), or `none` for the plain icon. */
   declare scene: IsoScene | 'none' | '';
   constructor() {
     super();
@@ -220,12 +271,21 @@ export class MxEmpty extends MxElement {
  * A figure with its label — the site's "facts" strip: a display-size number with tight tracking and tabular
  * figures, a quiet label above and an optional hint below. `tone`: neg | pos | warn colours the value.
  * Lay several out with a grid; `divided` on the host draws the hairline between neighbours.
+ *
+ * @tagname mx-stat
+ * @slot - The figure.
+ * @slot label - Extra label content after `label`.
+ * @slot hint - A line under the figure (collapses when empty).
  */
 export class MxStat extends MxElement {
   static properties = { label: { type: String }, tone: { type: String, reflect: true }, size: { type: String, reflect: true }, divided: { type: Boolean, reflect: true } };
+  /** Small label above the figure. */
   declare label: string;
+  /** neg, pos or warn colours the figure. */
   declare tone: '' | 'neg' | 'pos' | 'warn';
+  /** md or lg figure. */
   declare size: 'md' | 'lg';
+  /** A hairline at the inline start (between neighbours in a row). */
   declare divided: boolean;
   constructor() {
     super();

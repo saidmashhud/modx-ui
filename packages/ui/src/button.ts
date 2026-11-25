@@ -10,6 +10,11 @@ export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
  * Renders a native <button> inside the shadow root. Form-associated: `type="submit"` submits and `type="reset"`
  * resets the form the button belongs to (its `form` attribute or nearest <form>, through ElementInternals; the
  * nearest <form> where ElementInternals is missing). A disabled <fieldset> disables it.
+ *
+ * @tagname mx-button
+ * @fires click - Native click (not fired while disabled or loading).
+ * @slot - The label.
+ * @csspart button - The native <button>.
  */
 export class MxButton extends MxElement {
   static formAssociated = true;
@@ -26,18 +31,27 @@ export class MxButton extends MxElement {
     label: { type: String },
     pressed: { type: Boolean, reflect: true },
   };
+  /** primary (the call to action), secondary, ghost or danger. */
   declare variant: ButtonVariant;
+  /** sm, md (default) or lg. */
   declare size: 'sm' | 'md' | 'lg';
+  /** Icon before the label (an `ICONS` name). */
   declare icon: string;
+  /** Icon after the label. */
   declare iconEnd: string;
+  /** Not clickable, dimmed. */
   declare disabled: boolean;
+  /** Shows a spinner, not clickable, `aria-busy`. */
   declare loading: boolean;
+  /** button (default), submit or reset — submit / reset act on the button's form. */
   declare type: 'button' | 'submit' | 'reset';
   declare formDisabled: boolean;
   /** The host's `aria-description` (an mx-tooltip around the button sets it), passed on to the focusable inner button. */
   declare description: string;
   private fc = new FormControl(this);
+  /** Accessible name for an icon-only button. */
   declare label: string;
+  /** Toggle state (`aria-pressed`). */
   declare pressed: boolean;
 
   static shadowRootOptions = { ...MxElement.shadowRootOptions, delegatesFocus: true };

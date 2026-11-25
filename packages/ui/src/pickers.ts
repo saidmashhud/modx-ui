@@ -41,6 +41,10 @@ export interface SelectOption { value: string; label: string; hint?: string; ico
  * Emits `mx-change` with the value (single) or the array of values (multiple).
  * Form-associated: submits the value (or each of `values`) under `name`, `required` blocks submission while
  * nothing is picked, a disabled <fieldset> disables it, reset returns to the `value` attribute.
+ *
+ * @tagname mx-select
+ * @fires mx-change - The value changed; detail: the value (single) or the array of values (`multiple`).
+ * @csspart trigger - The field-styled button.
  */
 export class MxSelect extends MxElement {
   static formAssociated = true;
@@ -60,18 +64,30 @@ export class MxSelect extends MxElement {
     icon: { type: String },
     open: { state: true },
   };
+  /** The chosen value (single). */
   declare value: string;
+  /** The chosen values (`multiple`). */
   declare values: string[];
+  /** `{ value, label, hint?, icon?, group?, disabled? }[]`. */
   declare options: SelectOption[];
+  /** Pick several; the list stays open. */
   declare multiple: boolean;
+  /** Always show the search box (it appears by itself for more than 7 options). */
   declare searchable: boolean;
+  /** Shown when nothing is chosen (default `kitStrings.select`). */
   declare placeholder: string;
+  /** Visible label above the trigger. */
   declare label: string;
+  /** sm, md (default) or lg. */
   declare size: 'sm' | 'md' | 'lg';
+  /** Cannot be opened. */
   declare disabled: boolean;
+  /** Leading icon in the trigger. */
   declare icon: string;
   declare open: boolean;
+  /** Name the value (or each value) is submitted under. */
   declare name: string;
+  /** Something must be chosen (form validity). */
   declare required: boolean;
   declare formDisabled: boolean;
   private uid = nextId('sel');
@@ -375,6 +391,10 @@ export interface DateRangeChange { start: number | null; end: number | null; sta
  * attributes, a disabled <fieldset> disables it.
  * A text box on top accepts typed dates in the locale's order (the one the box shows: mm/dd/yyyy for en-US,
  * dd.mm.yyyy for ru-RU) and ISO yyyy-mm-dd; its hint is `kitStrings.dateFormatHint`, or derived from the locale when empty.
+ *
+ * @tagname mx-date-picker
+ * @fires mx-change - Day: `{ value, day }`; range: `{ start, end, startDay, endDay }`; month: `{ value, month }`.
+ * @csspart trigger - The field-styled button.
  */
 export class MxDatePicker extends MxElement {
   static formAssociated = true;
@@ -405,21 +425,33 @@ export class MxDatePicker extends MxElement {
   /** `day` (default) or `month`. */
   declare mode: 'day' | 'month';
   declare focusMonth: string;
+  /** Range start (epoch ms, 00:00 UTC). */
   declare start: number | null;
+  /** Range end (epoch ms, 00:00 UTC). */
   declare end: number | null;
+  /** Pick a start and an end. */
   declare range: boolean;
+  /** Visible label above the trigger. */
   declare label: string;
+  /** Shown when empty (default `kitStrings.pickDate` / `pickMonth`). */
   declare placeholder: string;
+  /** sm, md (default) or lg. */
   declare size: 'sm' | 'md' | 'lg';
+  /** Cannot be opened. */
   declare disabled: boolean;
+  /** Offer "Clear" in the footer (default true). */
   declare clearable: boolean;
+  /** Earliest day (epoch ms or "YYYY-MM-DD"; month mode "YYYY-MM"). */
   declare min: number | string | null;
+  /** Latest day (as `min`). */
   declare max: number | string | null;
   declare open: boolean;
   declare focusDay: string;
   declare pending: string | null;
   declare hoverDay: string | null;
+  /** Name the value is submitted under ("YYYY-MM-DD", "YYYY-MM"; a range submits both ends). */
   declare name: string;
+  /** Must have a value (a range: both ends). */
   declare required: boolean;
   declare formDisabled: boolean;
   private uid = nextId('dp');

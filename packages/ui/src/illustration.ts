@@ -73,7 +73,11 @@ export const isoStyles = css`
 `;
 
 /* ───────────── mx-illustration ───────────── */
-/** A preset isometric scene (`scene`: stack | plan | columns | module). The accent module settles gently; still for reduced motion. */
+/**
+ * A preset isometric scene (`scene`: stack | plan | columns | module). The accent module settles gently; still for reduced motion.
+ *
+ * @tagname mx-illustration
+ */
 export class MxIllustration extends MxElement {
   static properties = { scene: { type: String, reflect: true } };
   declare scene: IsoScene;

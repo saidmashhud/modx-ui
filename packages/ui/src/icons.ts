@@ -90,6 +90,8 @@ export const DIRECTIONAL_ICONS: ReadonlySet<string> = new Set(['chevron-left', '
  * icons (`DIRECTIONAL_ICONS`) are mirrored under `dir="rtl"`; `no-mirror` keeps one as drawn.
  *
  * @csspart svg - The drawn icon.
+ *
+ * @tagname mx-icon
  */
 export class MxIcon extends MxElement {
   static properties = {

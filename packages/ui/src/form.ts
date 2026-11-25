@@ -39,6 +39,13 @@ export const autofocusAllowed = (): boolean =>
 /**
  * Text field. Form-associated: inside a <form> it submits `value` under `name`, blocks submission while `required`
  * and empty, follows a disabled <fieldset>, and resets to its `value` attribute.
+ *
+ * @tagname mx-input
+ * @fires mx-input - Every keystroke; detail: the value.
+ * @fires mx-change - Committed (native change); detail: the value.
+ * @slot end - After the text (a unit, a clear button).
+ * @csspart control - The bordered box.
+ * @csspart input - The native <input>.
  */
 export class MxInput extends MxElement {
   static formAssociated = true;
@@ -58,17 +65,27 @@ export class MxInput extends MxElement {
     autocomplete: { type: String },
     inputmode: { type: String },
   };
+  /** Native autocomplete (default off). */
   declare autocomplete: string;
   /** Virtual keyboard hint (`decimal`, `numeric`, `email`…), forwarded to the native input. */
   declare inputmode: string;
+  /** The text. */
   declare value: string;
+  /** Visible label above the field (also its accessible name). */
   declare label: string;
+  /** Placeholder (the accessible name when there is no label). */
   declare placeholder: string;
+  /** Leading icon. */
   declare icon: string;
+  /** Native input type (text, email, search, number…). */
   declare type: string;
+  /** Error text under the field (`role="alert"`, `aria-invalid`). */
   declare error: string;
+  /** Must not be empty (form validity). */
   declare required: boolean;
+  /** No border or background (inline editing). */
   declare bare: boolean;
+  /** Focus on first render (skipped on touch-only devices). */
   declare autofocus: boolean;
   /** Name the value is submitted under. */
   declare name: string;
@@ -142,6 +159,13 @@ export interface MentionCandidate { id: string; label: string; hint?: string; co
 /**
  * Auto-growing textarea. With `mentions` set, typing `@name` shows an inline suggestion list (focus stays in the
  * textarea; ↑/↓, Enter/Tab, Esc) and inserts the token `<@id>` that mx-markdown renders as a mention chip.
+ *
+ * @tagname mx-textarea
+ * @fires mx-input - Every keystroke and inserted mention; detail: the value.
+ * @fires mx-change - Committed (native change); detail: the value.
+ * @fires mx-blur - Focus left; detail: the value.
+ * @csspart control - The bordered box.
+ * @csspart textarea - The native <textarea>.
  */
 export class MxTextarea extends MxElement {
   static properties = {
@@ -155,14 +179,21 @@ export class MxTextarea extends MxElement {
     readonly: { type: Boolean, reflect: true },
     suggest: { state: true },
   };
+  /** The text. */
   declare value: string;
   /** Shown but not editable (e.g. view-only access). */
   declare readonly: boolean;
+  /** Visible label (also the accessible name). */
   declare label: string;
+  /** Placeholder. */
   declare placeholder: string;
+  /** No border or background. */
   declare bare: boolean;
+  /** Rows before it starts growing. */
   declare minRows: number;
+  /** Focus on first render (skipped on touch-only devices). */
   declare autofocus: boolean;
+  /** `@` suggestions: `{ id, label, hint?, color? }[]`; null turns mentions off. */
   declare mentions: MentionCandidate[] | null;
   declare suggest: { query: string; start: number; active: number } | null;
   private inputId = nextId('ta');
@@ -294,10 +325,20 @@ define('mx-textarea', MxTextarea);
 /* ───────────── mx-segmented ───────────── */
 export interface SegmentOption { value: string; label: string; icon?: string }
 
+/**
+ * A segmented control: a radio group of options (`role="radiogroup"`), the kit's tabs-like switcher. ← / → (mirrored in RTL),
+ * ↑ / ↓, Home / End move and pick; the checked option is the one Tab stop.
+ *
+ * @tagname mx-segmented
+ * @fires mx-change - An option was picked; detail: its value.
+ */
 export class MxSegmented extends MxElement {
   static properties = { value: { type: String }, options: { attribute: false }, label: { type: String }, size: { type: String, reflect: true } };
+  /** The checked option's value. */
   declare value: string;
+  /** `{ value, label, icon? }[]`; with an icon the label becomes the accessible name (and hides with `collapse` on phones). */
   declare options: SegmentOption[];
+  /** Accessible name of the group. */
   declare label: string;
   constructor() {
     super();
@@ -375,6 +416,10 @@ declare global {
  * On/off switch (`role="switch"`). Label goes in the default slot; emits `mx-change` with the new boolean.
  * Form-associated like a checkbox: submits `value` (default "on") under `name` while checked, nothing otherwise;
  * `required` means it must be on; resets to its `checked` attribute as first rendered.
+ *
+ * @tagname mx-switch
+ * @fires mx-change - Toggled; detail: the new `checked`.
+ * @slot - The label, after the switch.
  */
 export class MxSwitch extends MxElement {
   static formAssociated = true;
@@ -383,10 +428,15 @@ export class MxSwitch extends MxElement {
     name: { type: String, reflect: true }, value: { type: String }, required: { type: Boolean, reflect: true },
     formDisabled: { state: true },
   };
+  /** On. */
   declare checked: boolean;
+  /** Cannot be toggled. */
   declare disabled: boolean;
+  /** Name the value is submitted under. */
   declare name: string;
+  /** Submitted while on (default "on"). */
   declare value: string;
+  /** Must be on (form validity). */
   declare required: boolean;
   declare formDisabled: boolean;
   private fc = new FormControl(this);

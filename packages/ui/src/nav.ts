@@ -2,7 +2,13 @@ import { css, html, nothing } from 'lit';
 import { base, define, kitStrings, MxElement } from './base.js';
 import './icons.js';
 
-/** Sidebar navigation link. Renders a real <a> so middle-click / copy link work; emits mx-navigate on plain clicks. */
+/**
+ * Sidebar navigation link. Renders a real <a> so middle-click / copy link work; emits mx-navigate on plain clicks.
+ *
+ * @tagname mx-nav-item
+ * @fires mx-navigate - A plain left click (modified clicks open the link as usual); detail: `href`.
+ * @slot - The label.
+ */
 export class MxNavItem extends MxElement {
   static properties = {
     href: { type: String },
@@ -12,11 +18,17 @@ export class MxNavItem extends MxElement {
     depth: { type: Number },
     color: { type: String },
   };
+  /** The link. */
   declare href: string;
+  /** Leading icon. */
   declare icon: string;
+  /** A count after the label. */
   declare count: number | undefined;
+  /** The current page (`aria-current="page"`). */
   declare active: boolean;
+  /** Nesting level (indent). */
   declare depth: number;
+  /** A colour swatch instead of the icon. */
   declare color: string;
 
   constructor() {
@@ -69,6 +81,9 @@ export interface Crumb { label: string; href: string }
  * Breadcrumb trail with a leading "back" button that goes to the nearest ancestor.
  * `items` are the ancestors only (the current page is the view's own heading); empty → renders nothing.
  * Real <a> links (middle-click works); plain clicks emit `mx-navigate` with the href.
+ *
+ * @tagname mx-breadcrumbs
+ * @fires mx-navigate - A crumb or the back button was clicked; detail: the href.
  */
 export class MxBreadcrumbs extends MxElement {
   static properties = {
@@ -76,8 +91,11 @@ export class MxBreadcrumbs extends MxElement {
     current: { type: String },
     backLabel: { type: String, attribute: 'back-label' },
   };
+  /** Ancestors only, `{ label, href }[]` (the current page is the view's heading); empty renders nothing. */
   declare items: Crumb[];
+  /** The current page's short name, after the trail. */
   declare current: string;
+  /** Accessible name of the back button (default: the parent's label). */
   declare backLabel: string;
 
   constructor() {

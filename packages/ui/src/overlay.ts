@@ -65,9 +65,21 @@ export function isOverlayOpen(): boolean {
 /** Narrow touch layouts get sheets and full-screen dialogs instead of anchored overlays. */
 export const isPhone = (): boolean => typeof matchMedia !== 'undefined' && matchMedia('(max-width: 640px)').matches;
 
+/**
+ * An anchored overlay on the Popover API (top layer, light dismiss); a bottom sheet on phones. `show(anchor, placement)`, `hide()`.
+ *
+ * @tagname mx-popover
+ * @fires mx-open - Opened.
+ * @fires mx-close - Closed (light dismiss, Esc, or `hide()`).
+ * @slot - The content.
+ * @csspart popover - The popover box.
+ * @cssprop --mx-list-max-height - Max height of a command list inside (56dvh in the phone sheet).
+ */
 export class MxPopover extends MxElement {
   static properties = { open: { type: Boolean, reflect: true }, placement: { type: String } };
+  /** Shown. */
   declare open: boolean;
+  /** bottom-start (default), bottom-end, top-start or right-start; start / end follow the writing direction. */
   declare placement: Placement;
   anchor: Element | DOMRect | null = null;
   private ro?: ResizeObserver;
@@ -194,6 +206,17 @@ function score(q: string, t: string): number {
   return best;
 }
 
+/**
+ * A searchable, keyboard-driven option list (ARIA combobox + listbox): focus stays in the search box, ↑ / ↓ / Home / End move
+ * the active option (`aria-activedescendant`, `aria-selected`), Enter picks, Esc dismisses. `multiple` toggles options
+ * (`aria-checked`). Fuzzy ranking, groups kept together.
+ *
+ * @tagname mx-command-list
+ * @fires mx-select - An option was picked; detail: `{ value, selected }`.
+ * @fires mx-query - The query changed; detail: the query.
+ * @fires mx-dismiss - Esc.
+ * @cssprop --mx-list-max-height - Max height of the scrolling list (default 320px).
+ */
 export class MxCommandList extends MxElement {
   static properties = {
     items: { attribute: false },
@@ -205,11 +228,17 @@ export class MxCommandList extends MxElement {
     nosearch: { type: Boolean, reflect: true },
     active: { state: true },
   };
+  /** `{ value, label, group?, hint?, keywords?, icon?, shortcut?, disabled? }[]`. */
   declare items: CommandItem[];
+  /** Chosen values (ticked / checked). */
   declare selected: string[];
+  /** Toggle options instead of picking one. */
   declare multiple: boolean;
+  /** Search box placeholder (default `kitStrings.search`). */
   declare placeholder: string;
+  /** The search text. */
   declare query: string;
+  /** Shown when nothing matches (default `kitStrings.noResults`). */
   declare emptyText: string;
   /** Hide the search field (short lists). It stays focused off-screen, so typing still filters (type-ahead). */
   declare nosearch: boolean;
@@ -419,12 +448,22 @@ function deepActive(): HTMLElement | null {
  * Modal dialog on the native <dialog> (top layer; the page behind is inert, so focus stays inside). Esc and a click on
  * the backdrop close it — a press that starts inside (selecting text and releasing outside) does not. On close, focus
  * returns to what had it before. Emits `mx-close`.
+ *
+ * @tagname mx-dialog
+ * @fires mx-close - Closed (×, Esc, backdrop, or `open = false`).
+ * @slot - The body.
+ * @slot footer - Buttons, at the inline end (the footer is hidden without them).
+ * @slot header-end - Next to the heading, before ×.
  */
 export class MxDialog extends MxElement {
   static properties = { open: { type: Boolean, reflect: true }, heading: { type: String }, width: { type: String }, align: { type: String } };
+  /** Shown as a modal. */
   declare open: boolean;
+  /** Title in the header (and the accessible name); without it there is no header. */
   declare heading: string;
+  /** Width on wider screens (any CSS length; default 560px). Full screen on phones. */
   declare width: string;
+  /** top (default: 12vh from the top) or center. */
   declare align: 'center' | 'top';
 
   constructor() {
@@ -546,11 +585,17 @@ define('mx-dialog', MxDialog);
  * assistive tech: it is set as `aria-description` on the slotted element itself — an id reference
  * (`aria-describedby`) cannot cross the shadow boundary — and `mx-button` passes it on to its inner button.
  * Escape dismisses it (WCAG 1.4.13) without moving focus.
+ *
+ * @tagname mx-tooltip
+ * @slot - The trigger (one element).
  */
 export class MxTooltip extends MxElement {
   static properties = { content: { type: String }, shortcut: { type: String }, placement: { type: String } };
+  /** The text (also the trigger's `aria-description`). */
   declare content: string;
+  /** Keys shown after the text, space-separated ("⌘ K"). */
   declare shortcut: string;
+  /** Where it appears (default bottom-start). */
   declare placement: Placement;
   private timer?: number;
   private tipId = nextId('tip');
@@ -667,8 +712,18 @@ define('mx-tooltip', MxTooltip);
 export interface ToastView { id: number; message: string; tone: 'info' | 'success' | 'danger'; action?: { label: string } }
 const TONE_ICON: Record<ToastView['tone'], string> = { info: 'info', success: 'check', danger: 'alert' };
 
+/**
+ * Where toasts appear (bottom, inline end; full width on phones), announced politely. The app keeps the list
+ * (`toasts`) and removes entries on dismiss or after a timeout.
+ *
+ * @tagname mx-toast-region
+ * @fires mx-toast-action - A toast's action button; detail: the toast id.
+ * @fires mx-toast-dismiss - A toast's × ; detail: the toast id.
+ * @cssprop --mx-toast-offset - Extra distance from the bottom (above a bottom bar).
+ */
 export class MxToastRegion extends MxElement {
   static properties = { toasts: { attribute: false } };
+  /** `{ id, message, tone: info | success | danger, action?: { label } }[]`. */
   declare toasts: ToastView[];
   constructor() {
     super();

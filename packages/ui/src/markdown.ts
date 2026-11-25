@@ -96,10 +96,18 @@ export function renderInline(text: string, r: MarkdownResolvers): (TemplateResul
     typeof part === 'string' ? part.split('\n').flatMap((s, i): (TemplateResult | string)[] => (i ? [html`<br />`, s] : [s])) : [part]);
 }
 
+/**
+ * Renders `source` with `renderMarkdown()`: safe Markdown (no innerHTML), mentions and issue references via `resolvers`.
+ *
+ * @tagname mx-markdown
+ */
 export class MxMarkdown extends MxElement {
   static properties = { source: { type: String }, resolvers: { attribute: false }, placeholder: { type: String } };
+  /** Markdown text. */
   declare source: string;
+  /** `{ mention(id), issue(identifier) }`: names for mentions, which references become links. */
   declare resolvers: MarkdownResolvers;
+  /** Shown (muted) while `source` is empty. */
   declare placeholder: string;
 
   constructor() {

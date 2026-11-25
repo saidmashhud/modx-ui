@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Builds each package into packages/<name>/dist as a publishable package: ES2022 JS + .d.ts (+ maps) from tsc, the
- * package's LICENSE and README, tokens.css, and a package.json whose exports point at the built files with "types".
+ * package's LICENSE and README, tokens.css, custom-elements.json (ui: scripts/manifest.mjs), and a package.json whose
+ * exports point at the built files with "types".
  *
  * The source manifests (packages/<name>/package.json) keep pointing at src/*.ts: apps that vendor this repo
  * (mod-x copies the committed tree, without dist/) import the TypeScript sources through their bundler. Publish
@@ -43,8 +44,11 @@ for (const name of names) {
   }
   for (const f of ['LICENSE', 'README.md']) if (existsSync(join(dir, f))) copyFileSync(join(dir, f), join(out, f));
   const { scripts: _s, devDependencies: _d, files: _f, main: _m, ...rest } = pkg;
+  /* the Custom Elements Manifest (editors, Storybook, the docs site's API tables) sits at the package root */
+  if (pkg.customElements) execFileSync(process.execPath, [join(root, 'scripts', 'manifest.mjs'), join(out, 'custom-elements.json')], { stdio: 'inherit' });
   const manifest = {
     ...rest,
+    ...(pkg.customElements ? { customElements: './custom-elements.json' } : {}),
     main: built(pkg.main),
     types: typesOf(built(pkg.main)),
     exports,
