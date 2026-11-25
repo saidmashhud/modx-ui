@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — 2026-11-25
 
 Toward 1.0: real-browser tests, right-to-left, a docs site.
 

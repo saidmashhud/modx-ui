@@ -4,5 +4,5 @@
   "type": "module",
   "license": "MIT",
   "scripts": { "dev": "vite", "build": "vite build", "preview": "vite preview" },
-  "dependencies": { "@saidmashhud/modx-store": "0.2.0", "@saidmashhud/modx-tokens": "0.2.0", "@saidmashhud/modx-ui": "0.2.0", "lit": "^3.3.3", "rxjs": "^7.8.2" }
+  "dependencies": { "@saidmashhud/modx-store": "0.3.0", "@saidmashhud/modx-tokens": "0.3.0", "@saidmashhud/modx-ui": "0.3.0", "lit": "^3.3.3", "rxjs": "^7.8.2" }
 }

@@ -14,7 +14,7 @@ export function storedTheme(): Theme {
 }
 applyTheme(storedTheme());
 
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 
 /**
  * Page frame: top bar (wordmark, theme, repository), the site map, the page in the middle, previous / next at the end.
