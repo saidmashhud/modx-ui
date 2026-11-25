@@ -20,6 +20,8 @@
   "include": [
     "packages/*/src",
     "packages/*/test",
-    "examples/*/src"
+    "examples/*/src",
+    "test",
+    "vitest.browser.config.ts"
   ]
 }

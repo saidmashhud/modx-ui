@@ -2,3 +2,8 @@ node_modules/
 dist/
 *.tsbuildinfo
 .DS_Store
+site-shots/
+site/dist/
+.vitest-attachments/
+test/browser/__screenshots__/**/*-actual*.png
+test/browser/__screenshots__/**/*-diff*.png

@@ -12,10 +12,16 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build:example": "npm run build -w modx-example-todo",
     "dev:example": "npm run dev -w modx-example-todo",
-    "build": "node scripts/build-packages.mjs"
+    "build": "node scripts/build-packages.mjs",
+    "test:browser": "vitest run -c vitest.browser.config.ts --project browser",
+    "test:visual": "vitest run -c vitest.browser.config.ts --project visual"
   },
   "devDependencies": {
+    "@custom-elements-manifest/analyzer": "^0.11.0",
+    "@vitest/browser-playwright": "^5.1.1",
+    "axe-core": "^4.14.1",
     "happy-dom": "^21.0.4",
+    "playwright": "^1.65.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
     "vitest": "^5.1.1"
