@@ -244,7 +244,7 @@ export class MxStat extends MxElement {
     :host([tone='neg']) .value { color: var(--mx-danger); }
     :host([tone='pos']) .value { color: var(--mx-success); }
     :host([tone='warn']) .value { color: var(--mx-warning); }
-    .hint { font-size: var(--mx-text-xs); line-height: 1.4; color: var(--mx-text-faint); }
+    .hint { font-size: var(--mx-text-xs); line-height: 1.4; color: var(--mx-text-muted); }
   `];
   render() {
     return html`<span class="label">${this.label}<slot name="label"></slot></span><span class="value"><slot></slot></span><span class="hint"><slot name="hint" @slotchange=${this.onHint}></slot></span>`;

@@ -122,12 +122,13 @@ export class MxMarkdown extends MxElement {
     pre { padding: var(--mx-space-3); border-radius: var(--mx-radius-md); background: var(--mx-bg-sunken); border: 1px solid var(--mx-border); overflow-x: auto; }
     pre code { padding: 0; background: none; font-size: var(--mx-text-sm); font-weight: var(--mx-weight-regular); white-space: pre; }
     strong { color: var(--mx-text); font-weight: var(--mx-weight-semibold); }
-    a { color: var(--mx-accent-text); text-decoration: none; }
-    a:hover { text-decoration: underline; }
+    a { color: var(--mx-accent-text); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.18em; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); }
+    a:hover { text-decoration-color: currentColor; }
+    a.mention, a.ref { text-decoration: none; }
     a:focus-visible { outline: none; box-shadow: var(--mx-focus-ring); border-radius: 2px; }
     a.mention, a.ref { padding: 0 4px; border-radius: var(--mx-radius-sm); background: color-mix(in srgb, var(--mx-accent) 16%, transparent); font-weight: var(--mx-weight-medium); }
     a.ref { font-variant-numeric: tabular-nums; }
-    .empty { color: var(--mx-text-faint); }
+    .empty { color: var(--mx-text-muted); }
   `];
 
   private onClick(e: MouseEvent) {

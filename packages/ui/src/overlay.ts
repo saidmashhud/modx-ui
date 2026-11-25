@@ -243,7 +243,7 @@ export class MxCommandList extends MxElement {
     li[aria-disabled='true'] { opacity: 0.4; cursor: default; }
     .icon { display: inline-flex; width: 16px; justify-content: center; color: var(--mx-text-muted); }
     .label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .hint { color: var(--mx-text-faint); font-size: var(--mx-text-sm); }
+    .hint { color: var(--mx-text-muted); font-size: var(--mx-text-sm); }
     .check { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--mx-border-strong); display: inline-grid; place-items: center; color: var(--mx-on-accent); }
     .check.on { background: var(--mx-accent); border-color: var(--mx-accent); }
     .tick { color: var(--mx-accent-text); }
@@ -251,7 +251,7 @@ export class MxCommandList extends MxElement {
     /* touch screens: 44 px rows, and no keyboard shortcuts to show */
     @media (pointer: coarse) { li[role='option'] { height: var(--mx-control-lg); } }
     @media (hover: none) { .kbd { display: none; } }
-    .empty { padding: var(--mx-space-6) var(--mx-space-3); text-align: center; color: var(--mx-text-faint); font-size: var(--mx-text-md); }
+    .empty { padding: var(--mx-space-6) var(--mx-space-3); text-align: center; color: var(--mx-text-muted); font-size: var(--mx-text-md); }
   `];
 
   get filtered(): CommandItem[] {

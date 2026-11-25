@@ -25,7 +25,7 @@ const fieldCss = css`
   :host([bare]) .trigger { border-color: transparent; background: transparent; }
   :host([bare]) .trigger:hover { background: var(--mx-surface-hover); }
   .val { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ph { color: var(--mx-text-faint); }
+  .ph { color: var(--mx-text-muted); }
   .ic { color: var(--mx-text-muted); flex: none; display: inline-flex; }
   .count { flex: none; font-size: var(--mx-text-xs); color: var(--mx-text-muted); background: var(--mx-surface-active); border-radius: var(--mx-radius-full); padding: 1px 6px; }
 `;

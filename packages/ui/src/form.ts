@@ -194,7 +194,7 @@ export class MxTextarea extends MxElement {
       font-size: var(--mx-text-md); color: var(--mx-text-secondary); cursor: pointer; }
     .suggest li[aria-selected='true'] { background: var(--mx-surface-active); color: var(--mx-text); }
     .suggest .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
-    .suggest .hint { margin-inline-start: auto; color: var(--mx-text-faint); font-size: var(--mx-text-sm); }
+    .suggest .hint { margin-inline-start: auto; color: var(--mx-text-muted); font-size: var(--mx-text-sm); }
   `];
 
   private get ta(): HTMLTextAreaElement | null {
