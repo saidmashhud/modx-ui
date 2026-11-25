@@ -37,7 +37,25 @@ export const spinner = css`
   @media (prefers-reduced-motion: reduce) { .spinner { animation: mx-breathe 1.6s ease-in-out infinite; } }
 `;
 
+/** Every mounted mx-* element: `setKitStrings()` re-renders them (strings and locale are read at render time). */
+const mounted = new Set<MxElement>();
+
 export abstract class MxElement extends LitElement {
+  connectedCallback(): void {
+    super.connectedCallback();
+    mounted.add(this);
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    mounted.delete(this);
+  }
+
+  /** Called after `setKitStrings()`; re-renders by default. Override to refresh state derived from the strings. */
+  kitStringsChanged(): void {
+    this.requestUpdate();
+  }
+
   /** Dispatch a composed, bubbling CustomEvent. */
   protected emit<T>(name: string, detail?: T, opts: { cancelable?: boolean } = {}): boolean {
     return this.dispatchEvent(new CustomEvent<T>(name, { detail, bubbles: true, composed: true, cancelable: opts.cancelable }));
@@ -53,6 +71,8 @@ let uid = 0;
 export const kitStrings = {
   search: 'Search…', noResults: 'No results', close: 'Close', dismiss: 'Dismiss', remove: 'Remove',
   loading: 'Loading', unassigned: 'Unassigned', mention: 'Mention',
+  /** Accessible name of mx-breadcrumbs' <nav>. */
+  breadcrumb: 'Breadcrumb',
   /** BCP-47 locale for dates (mx-date-picker) and first day of week (0 = Sunday, 1 = Monday). */
   locale: 'en-US', weekStart: 0 as number,
   /** Validation message of a `required` control left empty (form-associated mx-input / mx-select / mx-date-picker / mx-switch). */
@@ -64,8 +84,43 @@ export const kitStrings = {
    * shown ("mm/dd/yyyy" for en-US, "dd.mm.yyyy" for ru-RU). Set it only to translate the letters, keeping that order. */
   dateFormatHint: '',
 };
-export function setKitStrings(patch: Partial<typeof kitStrings>): void {
+export type KitStrings = typeof kitStrings;
+const kitListeners = new Set<(s: KitStrings) => void>();
+
+/**
+ * Override kit strings (and `locale` / `weekStart`). Safe at any time: every mounted mx-* element re-renders with the
+ * new strings, and `onKitStrings` listeners are called.
+ */
+export function setKitStrings(patch: Partial<KitStrings>): void {
   Object.assign(kitStrings, patch);
+  for (const el of [...mounted]) el.kitStringsChanged();
+  for (const fn of [...kitListeners]) fn(kitStrings);
+}
+
+/** Be told when `setKitStrings()` runs (for app code that renders kit strings itself). Returns the unsubscribe. */
+export function onKitStrings(fn: (s: KitStrings) => void): () => void {
+  kitListeners.add(fn);
+  return () => { kitListeners.delete(fn); };
+}
+
+/**
+ * The writing direction that applies to `el`: its computed `direction` (set by the nearest `dir` attribute, across
+ * shadow roots, or by CSS). Keyboard handling mirrors left / right with it; CSS uses logical properties and `:dir()`.
+ */
+export function directionOf(el: Element | null | undefined): 'ltr' | 'rtl' {
+  if (!el) return 'ltr';
+  try {
+    const d = getComputedStyle(el).direction;
+    if (d === 'rtl' || d === 'ltr') return d;
+  } catch { /* no layout (DOM shims) */ }
+  const host = el.closest('[dir]');
+  return host?.getAttribute('dir')?.toLowerCase() === 'rtl' ? 'rtl' : 'ltr';
+}
+
+/** ArrowLeft / ArrowRight as "previous" / "next" in the inline direction: -1, 1, or 0 for other keys. */
+export function inlineStep(key: string, dir: 'ltr' | 'rtl'): -1 | 0 | 1 {
+  const d = key === 'ArrowRight' ? 1 : key === 'ArrowLeft' ? -1 : 0;
+  return (dir === 'rtl' ? -d : d) as -1 | 0 | 1;
 }
 
 export const nextId = (p = 'mx') => `${p}-${++uid}`;

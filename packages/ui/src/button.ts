@@ -83,7 +83,8 @@ export class MxButton extends MxElement {
     :host([variant='ghost'][pressed]) button { background: var(--mx-surface-active); color: var(--mx-text); }
 
     :host([variant='danger']) button { background: transparent; border-color: color-mix(in srgb, var(--mx-danger) 45%, transparent); color: var(--mx-danger); }
-    :host([variant='danger']) button:hover { background: color-mix(in srgb, var(--mx-danger) 12%, transparent); }
+    /* hover: a faint wash, and the text a step towards --mx-text so it keeps 4.5:1 on the wash (both themes) */
+    :host([variant='danger']) button:hover { background: color-mix(in srgb, var(--mx-danger) 8%, transparent); color: color-mix(in srgb, var(--mx-danger) 80%, var(--mx-text)); }
 
     :host([size='sm']) button { height: var(--mx-control-sm); padding: 0 var(--mx-space-2); font-size: var(--mx-text-sm); gap: var(--mx-space-1); }
     :host([size='lg']) button {

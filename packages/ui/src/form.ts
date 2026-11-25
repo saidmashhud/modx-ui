@@ -1,5 +1,5 @@
 import { css, html, nothing } from 'lit';
-import { base, define, MxElement, nextId, kitStrings } from './base.js';
+import { base, define, directionOf, inlineStep, MxElement, nextId, kitStrings } from './base.js';
 import { FormControl } from './form-control.js';
 import './icons.js';
 
@@ -187,7 +187,7 @@ export class MxTextarea extends MxElement {
     .control { padding: var(--mx-space-2) var(--mx-space-3); align-items: stretch; }
     textarea { resize: none; line-height: var(--mx-leading-normal); overflow: hidden; }
     .suggest {
-      position: absolute; left: var(--mx-space-2); top: calc(100% + 4px); z-index: var(--mx-z-popover); min-width: 220px; max-width: 320px;
+      position: absolute; inset-inline-start: var(--mx-space-2); top: calc(100% + 4px); z-index: var(--mx-z-popover); min-width: 220px; max-width: 320px;
       margin: 0; padding: 4px; list-style: none; background: var(--mx-surface-overlay); border-radius: var(--mx-radius-lg); box-shadow: var(--mx-shadow-popover);
     }
     .suggest li { display: flex; align-items: center; gap: var(--mx-space-2); height: var(--mx-control-md); padding: 0 var(--mx-space-2); border-radius: var(--mx-radius-md);
@@ -267,8 +267,8 @@ export class MxTextarea extends MxElement {
       <div class="control" part="control">
         <textarea id=${this.inputId} part="textarea" ?readonly=${this.readonly} rows=${this.minRows} .value=${this.value} placeholder=${this.placeholder}
           aria-label=${this.label || this.placeholder || nothing}
-          aria-autocomplete=${this.mentions ? 'list' : nothing} aria-expanded=${this.mentions ? String(open) : nothing}
-          aria-controls=${open ? this.listId : nothing}
+          aria-autocomplete=${this.mentions ? 'list' : nothing}
+          aria-controls=${open ? this.listId : nothing} aria-activedescendant=${open ? `${this.listId}-${this.suggest!.active}` : nothing}
           @keydown=${this.onKey}
           @input=${(e: Event) => {
             const ta = e.target as HTMLTextAreaElement;
@@ -281,7 +281,7 @@ export class MxTextarea extends MxElement {
           @blur=${() => { this.suggest = null; this.emit('mx-blur', this.value); }}></textarea>
       </div>
       ${open ? html`<ul class="suggest" id=${this.listId} role="listbox" aria-label=${kitStrings.mention}>
-        ${list.map((c, i) => html`<li role="option" aria-selected=${i === this.suggest!.active ? 'true' : 'false'}
+        ${list.map((c, i) => html`<li role="option" id=${`${this.listId}-${i}`} aria-selected=${i === this.suggest!.active ? 'true' : 'false'}
           @mousedown=${(e: Event) => { e.preventDefault(); this.insert(c); }}>
           ${c.color ? html`<span class="dot" style="background:${c.color}"></span>` : nothing}${c.label}
           ${c.hint ? html`<span class="hint">${c.hint}</span>` : nothing}</li>`)}
@@ -325,32 +325,42 @@ export class MxSegmented extends MxElement {
     this.value = v;
     this.emit('mx-change', v);
   }
+  /** Radio-group keys: ←/→ (mirrored in RTL) and ↑/↓ move to the previous / next option and pick it, Home / End the first / last. */
   private onKey(e: KeyboardEvent) {
+    const n = this.options.length;
+    if (!n) return;
     const i = this.options.findIndex((o) => o.value === this.value);
-    const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
-    if (!d) return;
-    e.preventDefault();
-    const next = this.options[(i + d + this.options.length) % this.options.length];
-    if (next) {
-      this.pick(next.value);
-      this.updateComplete.then(() => (this.renderRoot.querySelector('[aria-checked="true"]') as HTMLElement | null)?.focus());
+    let to: number;
+    if (e.key === 'Home') to = 0;
+    else if (e.key === 'End') to = n - 1;
+    else {
+      const d = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : inlineStep(e.key, directionOf(this));
+      if (!d) return;
+      to = i < 0 ? (d > 0 ? 0 : n - 1) : (i + d + n) % n;
     }
+    e.preventDefault();
+    const next = this.options[to];
+    if (next && next.value !== this.value) this.pick(next.value);
+    this.updateComplete.then(() => (this.renderRoot.querySelector('[tabindex="0"]') as HTMLElement | null)?.focus());
   }
-  /** When the options don't fit (a scrolling strip on phones), keep the chosen one in view. */
+  /** When the options don't fit (a scrolling strip on phones), keep the chosen one in view (either direction). */
   protected updated(changed: Map<string, unknown>) {
     if (!changed.has('value') && !changed.has('options')) return;
     const g = this.renderRoot.querySelector<HTMLElement>('.group');
     const b = g?.querySelector<HTMLElement>('[aria-checked="true"]');
     if (!g || !b || g.scrollWidth <= g.clientWidth) return;
     const pad = 16;
-    if (b.offsetLeft - pad < g.scrollLeft) g.scrollLeft = Math.max(0, b.offsetLeft - pad);
-    else if (b.offsetLeft + b.offsetWidth + pad > g.scrollLeft + g.clientWidth) g.scrollLeft = b.offsetLeft + b.offsetWidth + pad - g.clientWidth;
+    const gr = g.getBoundingClientRect(), br = b.getBoundingClientRect();
+    if (br.left < gr.left + pad) g.scrollLeft -= gr.left + pad - br.left;
+    else if (br.right > gr.right - pad) g.scrollLeft += br.right - (gr.right - pad);
   }
 
   render() {
+    /* roving tabindex: the checked option, or the first one while none is (else the group is unreachable by Tab) */
+    const tabbable = this.options.some((o) => o.value === this.value) ? this.value : this.options[0]?.value;
     return html`<div class="group" role="radiogroup" aria-label=${this.label || nothing} @keydown=${this.onKey}>
       ${this.options.map((o) => html`<button role="radio" aria-checked=${o.value === this.value ? 'true' : 'false'}
-        tabindex=${o.value === this.value ? 0 : -1} @click=${() => this.pick(o.value)} aria-label=${o.icon ? o.label : nothing} title=${o.icon ? o.label : nothing}>
+        tabindex=${o.value === tabbable ? 0 : -1} @click=${() => this.pick(o.value)} aria-label=${o.icon ? o.label : nothing} title=${o.icon ? o.label : nothing}>
         ${o.icon ? html`<mx-icon name=${o.icon} size="14"></mx-icon>` : nothing}<span class="lbl">${o.label}</span></button>`)}
     </div>`;
   }
@@ -415,10 +425,11 @@ export class MxSwitch extends MxElement {
     :host([disabled]) button, button[aria-disabled='true'] { cursor: not-allowed; opacity: 0.55; }
     .track { position: relative; width: 28px; height: 16px; flex: none; border-radius: 8px; background: var(--mx-surface-active);
       box-shadow: inset 0 0 0 1px var(--mx-border-strong); transition: background-color var(--mx-duration-base) var(--mx-ease-out); }
-    .thumb { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--mx-text-muted);
+    .thumb { position: absolute; top: 2px; inset-inline-start: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--mx-text-muted);
       transition: transform var(--mx-duration-base) var(--mx-ease-out), background-color var(--mx-duration-base) var(--mx-ease-out); }
     :host([checked]) .track { background: var(--mx-accent); box-shadow: none; }
     :host([checked]) .thumb { transform: translateX(12px); background: var(--mx-on-accent); }
+    :host([checked]:dir(rtl)) .thumb { transform: translateX(-12px); }
     button:focus-visible .track { box-shadow: var(--mx-focus-ring); }
   `];
   private toggle() {

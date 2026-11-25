@@ -1,5 +1,5 @@
 import { css, html, nothing } from 'lit';
-import { base, define, MxElement } from './base.js';
+import { base, define, kitStrings, MxElement } from './base.js';
 import './icons.js';
 
 /** Sidebar navigation link. Renders a real <a> so middle-click / copy link work; emits mx-navigate on plain clicks. */
@@ -118,7 +118,7 @@ export class MxBreadcrumbs extends MxElement {
     const parent = items[items.length - 1]!;
     return html`<button class="back" type="button" aria-label=${this.backLabel || parent.label} title=${this.backLabel || parent.label}
         @click=${(e: MouseEvent) => this.go(e, parent.href)}><mx-icon name="chevron-left" size="16"></mx-icon></button>
-      <nav aria-label="Breadcrumb"><ol>
+      <nav aria-label=${kitStrings.breadcrumb}><ol>
         ${items.map((c, i) => html`<li class=${i < items.length - 1 ? 'far' : ''}><a href=${c.href} @click=${(e: MouseEvent) => this.go(e, c.href)}>${c.label}</a>
           ${i < items.length - 1 || this.current ? html`<mx-icon class="sep" name="chevron-right" size="12"></mx-icon>` : nothing}</li>`)}
         ${this.current ? html`<li><span class="cur" aria-current="page">${this.current}</span></li>` : nothing}

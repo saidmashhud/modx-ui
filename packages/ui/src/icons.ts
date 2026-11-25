@@ -1,4 +1,4 @@
-import { css, html, svg, type SVGTemplateResult } from 'lit';
+import { css, html, nothing, svg, type SVGTemplateResult } from 'lit';
 import { base, define, MxElement } from './base.js';
 
 /** 16×16 line icons, 1.5px stroke — echoes the wireframe line-work of the source illustrations. */
@@ -71,6 +71,8 @@ export const ICONS: Record<string, SVGTemplateResult> = {
   history: svg`<path d="M2.75 8a5.25 5.25 0 1 0 1.6-3.8"/><path d="M2.5 2.75v2.5H5"/><path d="M8 5.25V8l2 1.5"/>`,
   bell: svg`<path d="M4 11.25V7a4 4 0 0 1 8 0v4.25l1.25 1.25H2.75z"/><path d="M6.5 14h3"/>`,
   'arrow-left': svg`<path d="M13 8H3M7 4 3 8l4 4"/>`,
+  info: svg`<circle cx="8" cy="8" r="5.75"/><path d="M8 7.25v3.5"/><circle cx="8" cy="5.1" r=".75" fill="currentColor" stroke="none"/>`,
+  alert: svg`<circle cx="8" cy="8" r="5.75"/><path d="M8 4.75v3.75"/><circle cx="8" cy="10.9" r=".75" fill="currentColor" stroke="none"/>`,
   shield: svg`<path d="M8 1.75 13 3.5v4.25c0 3-2.25 5.25-5 6.5-2.75-1.25-5-3.5-5-6.5V3.5z"/>`,
   redo: svg`<path d="m10.5 3.5 2.75 2.75L10.5 9"/><path d="M13.25 6.25h-6.5a3.5 3.5 0 0 0 0 7H10"/>`,
   unlock: svg`<rect x="3.25" y="7" width="9.5" height="6.5" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 4.9-.75"/>`,
@@ -80,32 +82,50 @@ export const ICONS: Record<string, SVGTemplateResult> = {
 
 export type IconName = keyof typeof ICONS;
 
+/** Icons that point along the inline direction ("back", "next", undo / redo): mirrored in right-to-left contexts. */
+export const DIRECTIONAL_ICONS: ReadonlySet<string> = new Set(['chevron-left', 'chevron-right', 'arrow-left', 'arrow-up-right', 'undo', 'redo']);
+
+/**
+ * A 16 px line icon from `ICONS`. Decorative unless `label` is set (then `role="img"` with that name). Directional
+ * icons (`DIRECTIONAL_ICONS`) are mirrored under `dir="rtl"`; `no-mirror` keeps one as drawn.
+ *
+ * @csspart svg - The drawn icon.
+ */
 export class MxIcon extends MxElement {
   static properties = {
     name: { type: String },
     size: { type: Number },
     label: { type: String },
+    noMirror: { type: Boolean, attribute: 'no-mirror' },
   };
+  /** Name of the glyph in `ICONS` (unknown names draw "plus"). */
   declare name: string;
+  /** Width and height in px. */
   declare size: number;
+  /** Accessible name; empty: the icon is decorative (hidden from assistive tech). */
   declare label: string;
+  /** Do not mirror a directional icon in right-to-left contexts. */
+  declare noMirror: boolean;
 
   constructor() {
     super();
     this.name = 'plus';
     this.size = 16;
     this.label = '';
+    this.noMirror = false;
   }
 
   static styles = [base, css`
     :host { display: inline-flex; flex: none; color: inherit; line-height: 0; }
     svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+    :host(:dir(rtl)) svg.mirror { transform: scaleX(-1); }
   `];
 
   render() {
     const glyph = ICONS[this.name] ?? ICONS.plus;
-    return html`<svg width=${this.size} height=${this.size} viewBox="0 0 16 16" role=${this.label ? 'img' : 'presentation'}
-      aria-label=${this.label || ''} aria-hidden=${this.label ? 'false' : 'true'}>${glyph}</svg>`;
+    const mirror = DIRECTIONAL_ICONS.has(this.name) && !this.noMirror;
+    return html`<svg part="svg" class=${mirror ? 'mirror' : ''} width=${this.size} height=${this.size} viewBox="0 0 16 16" role=${this.label ? 'img' : 'presentation'}
+      aria-label=${this.label || nothing} aria-hidden=${this.label ? 'false' : 'true'}>${glyph}</svg>`;
   }
 }
 define('mx-icon', MxIcon);

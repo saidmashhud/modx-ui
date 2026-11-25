@@ -69,7 +69,8 @@ describe('mx-date-picker mode="month"', () => {
     expect(cells).toHaveLength(12);
     expect(cells[1]!.getAttribute('aria-disabled')).toBe('true'); /* February < min */
     expect(cells[10]!.getAttribute('aria-selected')).toBe('true');
-    expect(cells[10]!.getAttribute('aria-label')).toBe('ноябрь 2026');
+    expect(cells[10]!.getAttribute('title')).toBe('ноябрь 2026');
+    expect(cells[10]!.textContent!.replace(/\s+/g, ' ').trim()).toBe(`${shortMonth(11, 'ru-RU')} 2026`); /* visible short month + the year for screen readers */
     expect(el.shadowRoot!.querySelector('.foot')!.textContent).toContain(kitStrings.thisMonth);
     cells[1]!.click();
     expect(got).toEqual([]);

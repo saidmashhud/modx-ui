@@ -1,5 +1,5 @@
 import { css, html, nothing, type PropertyValues } from 'lit';
-import { base, define, kitStrings, MxElement, nextId } from './base.js';
+import { base, define, directionOf, inlineStep, kitStrings, MxElement, nextId } from './base.js';
 import { FormControl, formDataOf } from './form-control.js';
 import type { CommandItem, MxCommandList, MxPopover } from './overlay.js';
 import './overlay.js';
@@ -13,7 +13,7 @@ const fieldCss = css`
   label { font-size: var(--mx-text-sm); color: var(--mx-text-muted); font-weight: var(--mx-weight-medium); }
   .trigger {
     all: unset; box-sizing: border-box; display: flex; align-items: center; gap: var(--mx-space-2); width: 100%; min-width: 0;
-    height: var(--mx-control-md); padding: 0 var(--mx-space-2) 0 var(--mx-space-3); border: 1px solid var(--mx-border-strong);
+    height: var(--mx-control-md); padding-block: 0; padding-inline: var(--mx-space-3) var(--mx-space-2); border: 1px solid var(--mx-border-strong);
     border-radius: var(--mx-radius-md); background: var(--mx-surface); color: var(--mx-text); font-size: var(--mx-field-size); cursor: pointer;
     transition: border-color var(--mx-duration-fast) var(--mx-ease-out), box-shadow var(--mx-duration-fast) var(--mx-ease-out);
   }
@@ -333,12 +333,12 @@ export function shortMonth(mo: number, locale: string = kitStrings.locale): stri
   return new Intl.DateTimeFormat(locale, { month: 'short', timeZone: 'UTC' }).format(Date.UTC(2026, mo - 1, 1)).replace(/\.$/, '');
 }
 
-/** Where a key moves the focus in a month grid of `cols` columns (4 × 3, or 3 × 4 on phones); null: not a move. */
-export function monthKeyMove(ym: string, key: string, cols: number): string | null {
+/** Where a key moves the focus in a month grid of `cols` columns (4 × 3, or 3 × 4 on phones); null: not a move.
+ * In a right-to-left grid (`dir`) ← and → are mirrored: → goes to the previous month. */
+export function monthKeyMove(ym: string, key: string, cols: number, dir: 'ltr' | 'rtl' = 'ltr'): string | null {
   const i = +ym.slice(5, 7) - 1;
   switch (key) {
-    case 'ArrowLeft': return addMonthsYm(ym, -1);
-    case 'ArrowRight': return addMonthsYm(ym, 1);
+    case 'ArrowLeft': case 'ArrowRight': return addMonthsYm(ym, inlineStep(key, dir));
     case 'ArrowUp': return addMonthsYm(ym, -cols);
     case 'ArrowDown': return addMonthsYm(ym, cols);
     case 'PageUp': return addMonthsYm(ym, -12);
@@ -505,12 +505,12 @@ export class MxDatePicker extends MxElement {
     .typed:focus { outline: none; border-color: var(--mx-accent); }
     .typed[aria-invalid='true'] { border-color: var(--mx-danger); }
     table { border-collapse: collapse; width: 100%; table-layout: fixed; }
-    th { font: var(--mx-weight-semibold) var(--mx-text-xs)/1 var(--mx-font-sans); letter-spacing: var(--mx-tracking-eyebrow); color: var(--mx-text-faint); text-transform: uppercase; padding: 4px 0; }
+    th { font: var(--mx-weight-semibold) var(--mx-text-xs)/1 var(--mx-font-sans); letter-spacing: var(--mx-tracking-eyebrow); color: var(--mx-text-muted); text-transform: uppercase; padding: 4px 0; }
     td { padding: 1px; text-align: center; }
     .d { all: unset; box-sizing: border-box; width: 100%; height: var(--mx-control-sm); display: grid; place-items: center; border-radius: var(--mx-radius-md);
       font-size: var(--mx-text-md); font-variant-numeric: tabular-nums; color: var(--mx-text-secondary); cursor: pointer; }
     .d:hover { background: var(--mx-surface-hover); color: var(--mx-text); }
-    .d.out { color: var(--mx-text-faint); }
+    .d.out { color: var(--mx-text-muted); }
     .d.today { box-shadow: inset 0 0 0 1px var(--mx-border-strong); }
     .d.in { background: color-mix(in srgb, var(--mx-accent) 16%, transparent); color: var(--mx-text); border-radius: 0; }
     .d[aria-selected='true'] { background: var(--mx-accent); color: var(--mx-on-accent); }
@@ -518,6 +518,7 @@ export class MxDatePicker extends MxElement {
     .d:focus-visible { box-shadow: var(--mx-focus-ring); }
     .foot { display: flex; justify-content: space-between; }
     .months { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; }
+    .months .row { display: contents; }
     @media (max-width: 640px) { .months { grid-template-columns: repeat(3, 1fr); } }
     .mo { all: unset; box-sizing: border-box; height: var(--mx-control-md); display: grid; place-items: center; border-radius: var(--mx-radius-md);
       font-size: var(--mx-text-md); color: var(--mx-text-secondary); cursor: pointer; text-transform: capitalize; }
@@ -577,7 +578,7 @@ export class MxDatePicker extends MxElement {
   private onMonthKey(e: KeyboardEvent) {
     if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.commitMonth(this.focusMonth); return; }
     const narrow = typeof matchMedia === 'function' && matchMedia('(max-width: 640px)').matches;
-    const next = monthKeyMove(this.focusMonth, e.key, narrow ? 3 : 4);
+    const next = monthKeyMove(this.focusMonth, e.key, narrow ? 3 : 4, directionOf(this));
     if (!next) return;
     e.preventDefault();
     this.focusMonth = next;
@@ -587,14 +588,18 @@ export class MxDatePicker extends MxElement {
   private monthGrid() {
     const y = this.focusMonth.slice(0, 4);
     const cur = this.ym, now = thisMonth();
+    /* rows as laid out: 4 × 3, or 3 × 4 on phones (the rows are display: contents; the CSS grid places the cells) */
+    const cols = typeof matchMedia === 'function' && matchMedia('(max-width: 640px)').matches ? 3 : 4;
+    const cell = (i: number) => {
+      const ym = `${y}-${pad(i + 1)}`;
+      const off = monthDisabled(ym, this.min, this.max);
+      /* the name is the visible short month plus the year ("Jun 2026"), so it contains what is shown */
+      return html`<button type="button" role="gridcell" class="mo ${ym === now ? 'today' : ''}" data-month=${ym}
+        tabindex=${ym === this.focusMonth ? 0 : -1} aria-selected=${ym === cur ? 'true' : 'false'} aria-disabled=${off ? 'true' : 'false'}
+        title=${formatMonth(ym)} @click=${() => this.commitMonth(ym)}>${shortMonth(i + 1)}<span class="sr-only"> ${y}</span></button>`;
+    };
     return html`<div class="months" role="grid" aria-labelledby="${this.uid}-m" @keydown=${this.onMonthKey}>
-      ${Array.from({ length: 12 }, (_, i) => {
-        const ym = `${y}-${pad(i + 1)}`;
-        const off = monthDisabled(ym, this.min, this.max);
-        return html`<button type="button" role="gridcell" class="mo ${ym === now ? 'today' : ''}" data-month=${ym}
-          tabindex=${ym === this.focusMonth ? 0 : -1} aria-selected=${ym === cur ? 'true' : 'false'} aria-disabled=${off ? 'true' : 'false'}
-          aria-label=${formatMonth(ym)} @click=${() => this.commitMonth(ym)}>${shortMonth(i + 1)}</button>`;
-      })}
+      ${Array.from({ length: 12 / cols }, (_, r) => html`<div role="row" class="row">${Array.from({ length: cols }, (_, c) => cell(r * cols + c))}</div>`)}
     </div>`;
   }
 
@@ -627,8 +632,8 @@ export class MxDatePicker extends MxElement {
     const ws = kitStrings.weekStart;
     let next: string | null = null;
     switch (e.key) {
-      case 'ArrowLeft': next = addDaysD(this.focusDay, -1); break;
-      case 'ArrowRight': next = addDaysD(this.focusDay, 1); break;
+      /* ← / → follow the grid: mirrored in a right-to-left context */
+      case 'ArrowLeft': case 'ArrowRight': next = addDaysD(this.focusDay, inlineStep(e.key, directionOf(this))); break;
       case 'ArrowUp': next = addDaysD(this.focusDay, -7); break;
       case 'ArrowDown': next = addDaysD(this.focusDay, 7); break;
       case 'PageUp': next = addMonthsD(this.focusDay, e.shiftKey ? -12 : -1); break;
@@ -683,7 +688,8 @@ export class MxDatePicker extends MxElement {
       <tbody>${rows.map((row) => html`<tr>${row.map((d) => {
         const on = this.range ? (this.pending ? d === this.pending : d === lo || d === hi) : sel.includes(d);
         const inRange = this.range && lo && hi && d > lo && d < hi;
-        return html`<td role="gridcell"><button type="button" class="d ${parts(d).m !== f.m ? 'out' : ''} ${d === today ? 'today' : ''} ${inRange ? 'in' : ''}"
+        /* the button is the grid cell (focus, selection); the <td> is only layout */
+        return html`<td role="presentation"><button type="button" role="gridcell" class="d ${parts(d).m !== f.m ? 'out' : ''} ${d === today ? 'today' : ''} ${inRange ? 'in' : ''}"
           data-day=${d} tabindex=${d === this.focusDay ? 0 : -1} aria-selected=${on ? 'true' : 'false'} aria-disabled=${this.disabledDay(d) ? 'true' : 'false'}
           aria-label=${this.fmt(d, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           @click=${() => this.pick(d)} @mouseenter=${() => { if (this.pending) this.hoverDay = d; }}>${parts(d).d}</button></td>`;

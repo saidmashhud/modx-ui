@@ -1,26 +1,41 @@
 import { css, html, nothing, type PropertyValues, type TemplateResult } from 'lit';
-import { base, define, MxElement, nextId, kitStrings } from './base.js';
+import { base, define, directionOf, MxElement, nextId, kitStrings } from './base.js';
 import './icons.js';
 import './display.js';
 
 /* ───────────── positioning ───────────── */
 
+/**
+ * Where an overlay goes relative to its anchor. `start` / `end` are logical: in a right-to-left context `bottom-start`
+ * lines the overlay up with the anchor's right edge. `right-start` means "after the anchor in the inline direction"
+ * (a submenu): to the right in LTR, to the left in RTL.
+ */
 export type Placement = 'bottom-start' | 'bottom-end' | 'top-start' | 'right-start';
 
-/** Place `el` (position: fixed) next to `anchor`, flipping to stay within the viewport. */
-export function position(el: HTMLElement, anchor: Element | DOMRect, placement: Placement = 'bottom-start', gap = 4): void {
+/**
+ * Place `el` (position: fixed) next to `anchor`, flipping to stay within the viewport. The writing direction is the
+ * anchor's (or `el`'s for a DOMRect anchor) unless `dir` is given.
+ */
+export function position(el: HTMLElement, anchor: Element | DOMRect, placement: Placement = 'bottom-start', gap = 4, dir?: 'ltr' | 'rtl'): void {
   const a = anchor instanceof Element ? anchor.getBoundingClientRect() : anchor;
+  const rtl = (dir ?? directionOf(anchor instanceof Element ? anchor : el)) === 'rtl';
   const r = el.getBoundingClientRect();
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   let top: number;
   let left: number;
   if (placement === 'right-start') {
-    left = a.right + gap;
     top = a.top;
-    if (left + r.width > vw - 8) left = a.left - r.width - gap;
+    if (!rtl) {
+      left = a.right + gap;
+      if (left + r.width > vw - 8) left = a.left - r.width - gap;
+    } else {
+      left = a.left - r.width - gap;
+      if (left < 8) left = a.right + gap;
+    }
   } else {
-    left = placement.endsWith('end') ? a.right - r.width : a.left;
+    const alignRight = placement.endsWith('end') !== rtl;
+    left = alignRight ? a.right - r.width : a.left;
     top = placement.startsWith('top') ? a.top - r.height - gap : a.bottom + gap;
     if (top + r.height > vh - 8 && a.top - r.height - gap > 8) top = a.top - r.height - gap;
     if (top < 8 && a.bottom + gap + r.height < vh) top = a.bottom + gap;
@@ -70,13 +85,15 @@ export class MxPopover extends MxElement {
       transition: opacity var(--mx-duration-fast) var(--mx-ease-out), transform var(--mx-duration-base) var(--mx-ease-out),
         overlay var(--mx-duration-fast) allow-discrete, display var(--mx-duration-fast) allow-discrete;
     }
+    :host(:dir(rtl)) .pop { transform-origin: top right; }
     .pop:popover-open { opacity: 1; transform: none; }
     @starting-style { .pop:popover-open { opacity: 0; transform: translateY(-2px) scale(0.985); } }
     /* Phones: anchored menus become bottom sheets — reachable with a thumb, never clipped by the keyboard edge. */
     .pop.sheet {
       inset: auto 0 var(--mx-keyboard-inset, 0px) 0; width: 100%; max-width: none; min-width: 0;
       max-height: min(78dvh, calc(var(--mx-viewport-height, 100dvh) - var(--mx-safe-top, 0px) - 16px));
-      border-radius: var(--mx-radius-xl) var(--mx-radius-xl) 0 0; padding: 0 var(--mx-safe-right, 0px) max(0px, var(--mx-safe-bottom, 0px) - var(--mx-keyboard-inset, 0px)) var(--mx-safe-left, 0px); box-sizing: border-box;
+      border-radius: var(--mx-radius-xl) var(--mx-radius-xl) 0 0; box-sizing: border-box;
+      padding: 0 var(--mx-safe-right, 0px) max(0px, var(--mx-safe-bottom, 0px) - var(--mx-keyboard-inset, 0px)) var(--mx-safe-left, 0px);
       transform: translateY(16px); --mx-list-max-height: 56dvh;
     }
     .pop.sheet:popover-open { transform: none; }
@@ -201,9 +218,9 @@ export class MxCommandList extends MxElement {
     this.items = [];
     this.selected = [];
     this.multiple = false;
-    this.placeholder = kitStrings.search;
+    this.placeholder = '';
     this.query = '';
-    this.emptyText = kitStrings.noResults;
+    this.emptyText = '';
     this.nosearch = false;
     this.active = 0;
   }
@@ -217,7 +234,7 @@ export class MxCommandList extends MxElement {
     input::placeholder { color: var(--mx-text-faint); }
     ul { list-style: none; margin: 0; padding: 4px; overflow-y: auto; max-height: var(--mx-list-max-height, 320px); overscroll-behavior: contain; }
     .group { padding: 8px 8px 4px; font: var(--mx-weight-semibold) var(--mx-text-xs) / 1 var(--mx-font-sans); text-transform: uppercase;
-      letter-spacing: var(--mx-tracking-eyebrow); color: var(--mx-text-faint); }
+      letter-spacing: var(--mx-tracking-eyebrow); color: var(--mx-text-muted); }
     li[role='option'] {
       display: flex; align-items: center; gap: var(--mx-space-2); height: var(--mx-control-md); padding: 0 var(--mx-space-2);
       border-radius: var(--mx-radius-md); font-size: var(--mx-text-md); color: var(--mx-text-secondary); cursor: pointer; user-select: none;
@@ -292,6 +309,12 @@ export class MxCommandList extends MxElement {
     switch (e.key) {
       case 'ArrowDown': e.preventDefault(); this.active = (this.active + 1) % Math.max(1, list.length); break;
       case 'ArrowUp': e.preventDefault(); this.active = (this.active - 1 + list.length) % Math.max(1, list.length); break;
+      /* Home / End jump to the first / last option; with a query typed they move the caret in the search field. */
+      case 'Home': case 'End':
+        if (this.query && !this.nosearch) return;
+        e.preventDefault();
+        this.active = e.key === 'Home' ? 0 : Math.max(0, list.length - 1);
+        break;
       case 'Enter': e.preventDefault(); this.choose(list[this.active]); break;
       case 'Escape': e.preventDefault(); e.stopPropagation(); this.emit('mx-dismiss'); return;
       default: return;
@@ -307,19 +330,19 @@ export class MxCommandList extends MxElement {
     return html`
       <div class="search">
         <mx-icon name="search" size="14"></mx-icon>
-        <input .value=${this.query} placeholder=${this.placeholder} role="combobox" aria-expanded="true"
+        <input .value=${this.query} placeholder=${this.placeholder || kitStrings.search} aria-label=${this.getAttribute('aria-label') || this.placeholder || kitStrings.search} role="combobox" aria-expanded="true"
           aria-controls=${this.listId} aria-activedescendant=${activeId || nothing} aria-autocomplete="list"
           @input=${(e: Event) => { this.query = (e.target as HTMLInputElement).value; this.active = 0; this.emit('mx-query', this.query); }}
           @keydown=${this.onKey} />
       </div>
       <ul id=${this.listId} role="listbox" aria-multiselectable=${this.multiple ? 'true' : 'false'}>
-        ${list.length === 0 ? html`<li class="empty">${this.emptyText}</li>` : nothing}
+        ${list.length === 0 ? html`<li class="empty" role="presentation">${this.emptyText || kitStrings.noResults}</li>` : nothing}
         ${list.map((it, i) => {
           const header = it.group && it.group !== lastGroup ? html`<li class="group" role="presentation">${it.group}</li>` : nothing;
           lastGroup = it.group;
           const on = this.selected.includes(it.value);
           return html`${header}<li id=${`${this.listId}-${i}`} role="option" aria-selected=${i === this.active ? 'true' : 'false'}
-            aria-checked=${on ? 'true' : 'false'} aria-disabled=${it.disabled ? 'true' : 'false'}
+            aria-checked=${this.multiple ? (on ? 'true' : 'false') : on ? 'true' : nothing} aria-disabled=${it.disabled ? 'true' : 'false'}
             @mousemove=${() => { if (this.active !== i) this.active = i; }}
             @mousedown=${(e: Event) => e.preventDefault()}
             @click=${() => this.choose(it)}>
@@ -380,6 +403,18 @@ export function openPicker(o: PickerOptions): () => void {
 
 /* ───────────── mx-dialog (native <dialog>: top layer, inert background, Esc) ───────────── */
 
+/** The focused element, looking into shadow roots. */
+function deepActive(): HTMLElement | null {
+  let a = document.activeElement as HTMLElement | null;
+  while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement as HTMLElement;
+  return a;
+}
+
+/**
+ * Modal dialog on the native <dialog> (top layer; the page behind is inert, so focus stays inside). Esc and a click on
+ * the backdrop close it — a press that starts inside (selecting text and releasing outside) does not. On close, focus
+ * returns to what had it before. Emits `mx-close`.
+ */
 export class MxDialog extends MxElement {
   static properties = { open: { type: Boolean, reflect: true }, heading: { type: String }, width: { type: String }, align: { type: String } };
   declare open: boolean;
@@ -433,10 +468,16 @@ export class MxDialog extends MxElement {
     .x:focus-visible { box-shadow: var(--mx-focus-ring); }
   `];
 
+  /** Focus before opening, given back on close. */
+  private returnTo: HTMLElement | null = null;
+  /** The press that may end in a backdrop click began on the backdrop. */
+  private downOutside = false;
+
   protected updated(changed: Map<string, unknown>) {
     const d = this.renderRoot.querySelector('dialog');
     if (!d || !changed.has('open')) return;
     if (this.open && !d.open) {
+      this.returnTo = deepActive();
       d.showModal();
       dialogStack.push(this);
     }
@@ -457,16 +498,33 @@ export class MxDialog extends MxElement {
     const k = dialogStack.indexOf(this);
     if (k !== -1) dialogStack.splice(k, 1);
     if (this.open) this.open = false;
+    const back = this.returnTo;
+    this.returnTo = null;
+    if (back?.isConnected) {
+      const now = deepActive();
+      if (!now || now === document.body || this.contains(now) || this.renderRoot.contains(now)) back.focus({ preventScroll: true });
+    }
     this.emit('mx-close');
   }
 
+  /** On the backdrop: the dialog element itself was hit outside its box (`::backdrop` hits report the dialog). */
+  private outside(e: MouseEvent): boolean {
+    const d = e.currentTarget as HTMLElement;
+    if (e.target !== d) return false;
+    const r = d.getBoundingClientRect();
+    return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+  }
+
   private onBackdrop(e: MouseEvent) {
-    if (e.target === e.currentTarget) this.close();
+    const close = this.downOutside && this.outside(e);
+    this.downOutside = false;
+    if (close) this.close();
   }
 
   render() {
     return html`<dialog style="--w:${this.width}" data-align=${this.align} aria-label=${this.heading || nothing}
-      @close=${this.onClose} @cancel=${(e: Event) => { e.preventDefault(); this.close(); }} @click=${this.onBackdrop}>
+      @close=${this.onClose} @cancel=${(e: Event) => { e.preventDefault(); this.close(); }}
+      @pointerdown=${(e: PointerEvent) => { this.downOutside = this.outside(e); }} @click=${this.onBackdrop}>
       ${this.heading ? html`<header><h2>${this.heading}</h2><slot name="header-end"></slot>
         <button class="x" aria-label=${kitStrings.close} @click=${() => this.close()}><mx-icon name="x" size="14"></mx-icon></button></header>` : nothing}
       <div class="body"><slot></slot></div>
@@ -602,6 +660,7 @@ define('mx-tooltip', MxTooltip);
 /* ───────────── mx-toast-region ───────────── */
 
 export interface ToastView { id: number; message: string; tone: 'info' | 'success' | 'danger'; action?: { label: string } }
+const TONE_ICON: Record<ToastView['tone'], string> = { info: 'info', success: 'check', danger: 'alert' };
 
 export class MxToastRegion extends MxElement {
   static properties = { toasts: { attribute: false } };
@@ -611,16 +670,16 @@ export class MxToastRegion extends MxElement {
     this.toasts = [];
   }
   static styles = [base, css`
-    :host { position: fixed; right: var(--mx-space-4); bottom: calc(var(--mx-space-4) + var(--mx-toast-offset, 0px)); z-index: var(--mx-z-toast); display: flex; flex-direction: column; gap: var(--mx-space-2); }
-    @media (max-width: 640px) { :host { left: var(--mx-space-3); right: var(--mx-space-3); bottom: calc(var(--mx-space-3) + var(--mx-toast-offset, 0px) + var(--mx-safe-bottom, 0px) + var(--mx-keyboard-inset, 0px)); } .toast { min-width: 0; max-width: none; } }
+    :host { position: fixed; inset-inline-end: var(--mx-space-4); bottom: calc(var(--mx-space-4) + var(--mx-toast-offset, 0px)); z-index: var(--mx-z-toast); display: flex; flex-direction: column; gap: var(--mx-space-2); }
+    @media (max-width: 640px) { :host { inset-inline: var(--mx-space-3); bottom: calc(var(--mx-space-3) + var(--mx-toast-offset, 0px) + var(--mx-safe-bottom, 0px) + var(--mx-keyboard-inset, 0px)); } .toast { min-width: 0; max-width: none; } }
     .toast {
       display: flex; align-items: center; gap: var(--mx-space-3); min-width: 260px; max-width: 420px; padding: 10px var(--mx-space-3);
       background: var(--mx-surface-overlay); border-radius: var(--mx-radius-lg); box-shadow: var(--mx-shadow-popover);
       font-size: var(--mx-text-md); color: var(--mx-text); animation: in var(--mx-duration-slow) var(--mx-ease-out);
     }
-    .bar { width: 3px; align-self: stretch; border-radius: 2px; background: var(--mx-accent); }
-    .toast[data-tone='danger'] .bar { background: var(--mx-danger); }
-    .toast[data-tone='success'] .bar { background: var(--mx-success); }
+    .tone { display: inline-flex; flex: none; color: var(--mx-accent-text); }
+    .toast[data-tone='danger'] .tone { color: var(--mx-danger); }
+    .toast[data-tone='success'] .tone { color: var(--mx-success); }
     .msg { flex: 1; }
     button { all: unset; cursor: pointer; color: var(--mx-accent-text); font-weight: var(--mx-weight-medium); font-size: var(--mx-text-sm); padding: 2px 4px; border-radius: var(--mx-radius-sm); }
     button:focus-visible { box-shadow: var(--mx-focus-ring); }
@@ -630,7 +689,7 @@ export class MxToastRegion extends MxElement {
   render() {
     return html`<div role="status" aria-live="polite">${this.toasts.map((t) => html`
       <div class="toast" data-tone=${t.tone}>
-        <span class="bar"></span><span class="msg">${t.message}</span>
+        <mx-icon class="tone" name=${TONE_ICON[t.tone] ?? 'info'}></mx-icon><span class="msg">${t.message}</span>
         ${t.action ? html`<button @click=${() => this.emit('mx-toast-action', t.id)}>${t.action.label}</button>` : nothing}
         <button class="x" aria-label=${kitStrings.dismiss} @click=${() => this.emit('mx-toast-dismiss', t.id)}><mx-icon name="x" size="12"></mx-icon></button>
       </div>`)}</div>`;
