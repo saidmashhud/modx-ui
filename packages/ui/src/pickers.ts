@@ -117,9 +117,13 @@ export class MxSelect extends MxElement {
 
   /* ── form participation ── */
   get form(): HTMLFormElement | null { return this.fc.form; }
+  /** Validity state (`valueMissing` while required and empty). */
   get validity(): ValidityState | undefined { return this.fc.validity; }
+  /** The message the browser would show (`kitStrings.valueMissing`). */
   get validationMessage(): string { return this.fc.validationMessage; }
+  /** True when valid; fires `invalid` otherwise, like native fields. */
   checkValidity(): boolean { return this.fc.checkValidity(); }
+  /** As checkValidity(), and shows the browser's message at the field. */
   reportValidity(): boolean { return this.fc.reportValidity(); }
   formResetCallback() { this.value = this.getAttribute('value') ?? ''; this.values = []; }
   formDisabledCallback(disabled: boolean) { this.formDisabled = disabled; }
@@ -146,6 +150,7 @@ export class MxSelect extends MxElement {
     return this.value != null && (this.value !== '' || this.options.some((o) => o.value === '')) ? [this.value] : [];
   }
 
+  /** Open the list (optionally with a search query). */
   show(query = '') {
     if (this.off || this.open) return;
     this.open = true;
@@ -161,6 +166,7 @@ export class MxSelect extends MxElement {
     });
   }
 
+  /** Close it. */
   hide() { this.pop?.hide(); }
 
   private onPick(e: CustomEvent<{ value: string; selected: string[] }>) {
@@ -491,9 +497,13 @@ export class MxDatePicker extends MxElement {
 
   /* ── form participation ── */
   get form(): HTMLFormElement | null { return this.fc.form; }
+  /** Validity state (`valueMissing` while required and empty). */
   get validity(): ValidityState | undefined { return this.fc.validity; }
+  /** The message the browser would show (`kitStrings.valueMissing`). */
   get validationMessage(): string { return this.fc.validationMessage; }
+  /** True when valid; fires `invalid` otherwise, like native fields. */
   checkValidity(): boolean { return this.fc.checkValidity(); }
+  /** As checkValidity(), and shows the browser's message at the field. */
   reportValidity(): boolean { return this.fc.reportValidity(); }
   formResetCallback() {
     const attr = (a: string) => msOrMonth.fromAttribute(this.getAttribute(a));
@@ -578,6 +588,7 @@ export class MxDatePicker extends MxElement {
     return (lo != null && ms < lo) || (hi != null && ms > hi);
   }
 
+  /** Open the calendar. */
   show() {
     if (this.off || this.open) return;
     if (this.isMonth) this.focusMonth = this.ym || thisMonth();
@@ -593,6 +604,7 @@ export class MxDatePicker extends MxElement {
     });
   }
 
+  /** Close it. */
   hide() { this.pop?.hide(); }
 
   private focusGrid() {

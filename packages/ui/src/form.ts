@@ -117,9 +117,13 @@ export class MxInput extends MxElement {
 
   /* ── form participation ── */
   get form(): HTMLFormElement | null { return this.fc.form; }
+  /** Validity state (`valueMissing` while required and empty). */
   get validity(): ValidityState | undefined { return this.fc.validity; }
+  /** The message the browser would show (`kitStrings.valueMissing`). */
   get validationMessage(): string { return this.fc.validationMessage; }
+  /** True when valid; fires `invalid` otherwise, like native fields. */
   checkValidity(): boolean { return this.fc.checkValidity(); }
+  /** As checkValidity(), and shows the browser's message at the field. */
   reportValidity(): boolean { return this.fc.reportValidity(); }
   formResetCallback() { this.value = this.getAttribute('value') ?? ''; }
   formDisabledCallback(disabled: boolean) { this.formDisabled = disabled; }
@@ -132,6 +136,7 @@ export class MxInput extends MxElement {
     if (this.autofocus && autofocusAllowed()) requestAnimationFrame(() => this.focus());
   }
 
+  /** Select the text. */
   select() {
     this.renderRoot.querySelector('input')?.select();
   }
@@ -454,10 +459,15 @@ export class MxSwitch extends MxElement {
     super.connectedCallback();
     this.defaultChecked ??= this.hasAttribute('checked');
   }
+  /** The form the control belongs to (its `form` attribute or nearest <form>). */
   get form(): HTMLFormElement | null { return this.fc.form; }
+  /** Validity state (`valueMissing` while required and empty). */
   get validity(): ValidityState | undefined { return this.fc.validity; }
+  /** The message the browser would show (`kitStrings.valueMissing`). */
   get validationMessage(): string { return this.fc.validationMessage; }
+  /** True when valid; fires `invalid` otherwise, like native fields. */
   checkValidity(): boolean { return this.fc.checkValidity(); }
+  /** As checkValidity(), and shows the browser's message at the field. */
   reportValidity(): boolean { return this.fc.reportValidity(); }
   formResetCallback() { this.checked = this.defaultChecked ?? false; }
   formDisabledCallback(disabled: boolean) { this.formDisabled = disabled; }

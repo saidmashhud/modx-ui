@@ -69,8 +69,12 @@ export class FormControl {
   /** The form the control belongs to (its `form` attribute or nearest <form>), when the platform knows it. */
   get form(): HTMLFormElement | null { return this.internals?.form ?? null; }
   sync(s: FormState): void { applyFormState(this.internals, s); }
+  /** True when valid; fires `invalid` otherwise, like native fields. */
   checkValidity(): boolean { return this.internals?.checkValidity?.() ?? true; }
+  /** As checkValidity(), and shows the browser's message at the field. */
   reportValidity(): boolean { return this.internals?.reportValidity?.() ?? true; }
+  /** Validity state (`valueMissing` while required and empty). */
   get validity(): ValidityState | undefined { return this.internals?.validity; }
+  /** The message the browser would show (`kitStrings.valueMissing`). */
   get validationMessage(): string { return this.internals?.validationMessage ?? ''; }
 }

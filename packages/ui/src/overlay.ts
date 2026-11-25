@@ -121,12 +121,14 @@ export class MxPopover extends MxElement {
     return this.renderRoot.querySelector('.pop');
   }
 
+  /** Open next to `anchor` (an element or a rect). */
   show(anchor: Element | DOMRect, placement?: Placement) {
     this.anchor = anchor;
     if (placement) this.placement = placement;
     this.open = true;
   }
 
+  /** Close it. */
   hide() {
     this.open = false;
   }
@@ -146,6 +148,7 @@ export class MxPopover extends MxElement {
     }
   }
 
+  /** Place it again (after the anchor moved). */
   reposition() {
     const pop = this.pop;
     if (!pop || !this.anchor) return;
@@ -318,6 +321,7 @@ export class MxCommandList extends MxElement {
     }
   }
 
+  /** Focus the search box. */
   focusInput() {
     (this.renderRoot.querySelector('input') as HTMLInputElement | null)?.focus();
   }
@@ -528,6 +532,7 @@ export class MxDialog extends MxElement {
     if (!this.open && d.open) d.close();
   }
 
+  /** Close the dialog (focus returns to what had it before). */
   close() {
     this.open = false;
   }
