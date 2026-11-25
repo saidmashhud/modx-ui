@@ -19,7 +19,10 @@ export type Placement = 'bottom-start' | 'bottom-end' | 'top-start' | 'right-sta
 export function position(el: HTMLElement, anchor: Element | DOMRect, placement: Placement = 'bottom-start', gap = 4, dir?: 'ltr' | 'rtl'): void {
   const a = anchor instanceof Element ? anchor.getBoundingClientRect() : anchor;
   const rtl = (dir ?? directionOf(anchor instanceof Element ? anchor : el)) === 'rtl';
-  const r = el.getBoundingClientRect();
+  /* the layout size, not the box on screen: an opening overlay is still scaled by its enter transition, and aligning
+   * that smaller box with an end edge left it a few px past the anchor once the transition ended */
+  const box = el.getBoundingClientRect();
+  const r = { width: el.offsetWidth || box.width, height: el.offsetHeight || box.height };
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   let top: number;
@@ -381,6 +384,8 @@ export function openPicker(o: PickerOptions): () => void {
   list.multiple = !!o.multiple;
   list.placeholder = o.placeholder ?? kitStrings.search;
   pop.appendChild(list);
+  /* mounted at the end of <body> (or the open dialog): carry the anchor's writing direction along */
+  if (o.anchor instanceof Element) pop.setAttribute('dir', directionOf(o.anchor));
   (dialogStack[dialogStack.length - 1] ?? document.body).appendChild(pop);
   const close = () => pop.hide();
   // Keep the picker's lifecycle events from reaching an enclosing dialog's listeners.

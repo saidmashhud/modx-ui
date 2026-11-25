@@ -120,7 +120,7 @@ export function directionOf(el: Element | null | undefined): 'ltr' | 'rtl' {
 /** ArrowLeft / ArrowRight as "previous" / "next" in the inline direction: -1, 1, or 0 for other keys. */
 export function inlineStep(key: string, dir: 'ltr' | 'rtl'): -1 | 0 | 1 {
   const d = key === 'ArrowRight' ? 1 : key === 'ArrowLeft' ? -1 : 0;
-  return (dir === 'rtl' ? -d : d) as -1 | 0 | 1;
+  return (dir === 'rtl' && d ? -d : d) as -1 | 0 | 1;
 }
 
 export const nextId = (p = 'mx') => `${p}-${++uid}`;
