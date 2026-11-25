@@ -20,6 +20,20 @@ source maps, LICENSE, README, and a manifest whose `exports` carry `types`. `lit
 `@saidmashhud/modx-ui`; `sideEffects` lists the files that register elements (and `*.css`). Publish the built directory
 (`npm publish packages/ui/dist`); the source directories refuse to publish.
 
+**Docs:** a static site built from this repo — getting started, theming, i18n and RTL, forms, the store / SyncEngine
+guide, and a page per component with live examples and API tables generated from `custom-elements.json`.
+`npm run docs:dev` (http://localhost:5180) or `npm run docs:build` → `site/dist` (relative URLs; a manual-only GitHub
+Pages workflow can publish it).
+
+**Browser support:** current Chromium, Firefox and Safari (Chrome 125+, Firefox 125+, Safari 17.4+): the kit uses the
+Popover API, `<dialog>`, `:dir()`, `color-mix()`, logical properties and ElementInternals. Every component is tested
+in all three engines (Vitest browser mode + Playwright), with axe-core in the light and dark themes.
+
+**Right to left:** put `dir="rtl"` on the root or any section. Layout uses logical properties; popovers, selects and
+pickers align to the start edge of their anchor, toasts sit at the inline end, ← / → are mirrored in the calendar,
+month grid and segmented control, and directional icons (chevrons, arrows, undo / redo) turn. Strings, date locale and
+week start come from `setKitStrings()`, which re-renders elements already on the page.
+
 ## @saidmashhud/modx-ui
 
 `mx-button` `mx-icon` (16 px line set) `mx-kbd` `mx-avatar` `mx-chip` `mx-spinner` `mx-empty` (with an isometric scene) `mx-stat`
@@ -39,8 +53,9 @@ import '@saidmashhud/modx-ui';
 ## @saidmashhud/modx-tokens
 
 `--mx-*` custom properties: a gray scale, one accent, status colors, type scale (display / sans; no monospace — tabular figures instead),
-spacing, radii, shadows, motion. `data-theme="dark" | "light"` on the root (or any section) switches the
-semantic layer; `applyTheme()` and typed `token` references are exported.
+spacing, radii, shadows, motion. `data-theme="dark" | "light" | "auto"` on the root (or any section) switches the
+semantic layer (`auto` follows `prefers-color-scheme`); `applyTheme()`, `resolvedTheme()` and typed `token` references
+are exported.
 
 ## @saidmashhud/modx-store
 
@@ -104,7 +119,17 @@ npm install
 npm test             # vitest: store, sync engine, router, query, OT, markdown
 npm run typecheck
 npm run dev:example  # examples/todo; start modx-core's ./build/todo on :8080 first
+
+npx playwright install chromium firefox webkit   # once, for the browser tests
+npm run test:browser # components in Chromium, Firefox, WebKit + axe-core (BROWSERS=chromium to narrow)
+npm run test:visual  # screenshot comparisons (Chromium); -- --update after a deliberate change
+npm run docs:dev     # the docs site; docs:build → site/dist, docs:shots → site-shots/ (+ axe on every page)
 ```
+
+Visual baselines live in `test/browser/__screenshots__/` per browser and platform (`*-chromium-darwin.png`,
+`*-chromium-linux.png`): fonts render differently on macOS and Linux, so each platform compares only with its own.
+The macOS ones are committed; CI makes the Linux ones on its first run and uploads them as the
+`visual-baselines-linux` artifact — review and commit them, and CI compares from then on.
 
 ## License
 

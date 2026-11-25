@@ -1,5 +1,46 @@
 # Changelog
 
+## Unreleased
+
+Toward 1.0: real-browser tests, right-to-left, a docs site.
+
+- **Browser tests.** `npm run test:browser` runs component tests in Chromium, Firefox and WebKit (Vitest browser mode,
+  Playwright): buttons submitting / resetting real forms through ElementInternals, inputs, select, switch, date picker
+  (day, range, month: keyboard, typed dates by locale, form value / validity / reset), dialog (Esc, focus trap and
+  return, backdrop vs drag), command list, `openPicker`, tooltip, toasts, segmented, display and navigation elements,
+  RTL and live strings — each rendered component also checked with axe-core in the dark and light themes.
+  `npm run test:visual` compares screenshots of key components (light, dark, RTL) with per-platform baselines. CI has a
+  `browser` job.
+- **Fixes the tests found.** `mx-dialog` closed when a text selection dragged out of it ended on the backdrop; it now
+  also returns focus to what had it. The date grid put `aria-selected` on plain buttons (the buttons are now the grid
+  cells; the month grid has rows; month cells are named "Jun 2026"); `aria-required` on the date picker's trigger is
+  gone (not allowed on a button). `position()` measured an opening popover while its enter transition still scaled
+  it, so end-aligned overlays ended ~3 px past the anchor. `mx-textarea` used `aria-expanded` on a textbox (now
+  `aria-activedescendant`). `mx-segmented` without a value could not be reached by Tab. Text below 4.5:1: the danger
+  button's hover, command-list group heads and hints, "No results", trigger placeholders, out-of-month days, weekday
+  heads, the `mx-stat` hint (all now `--mx-text-muted`; `--mx-text-faint` is for icons, separators and native
+  placeholders). `mx-avatar` initials are dark on light user colours. Markdown links are underlined.
+- **Keyboard.** `mx-segmented`: ↑ / ↓ / Home / End as well; `mx-command-list`: Home / End (with an empty query);
+  `aria-checked` only on chosen options in single-select.
+- **Right to left.** Components follow the nearest `dir` (or CSS `direction`): logical properties everywhere;
+  `position()` start / end placements are logical (`right-start` opens on the inline-end side); `openPicker()` carries
+  the anchor's direction; toasts at the inline end; the switch thumb on the logical side; ← / → mirrored in the date
+  grid, month grid and segmented control; `mx-icon` mirrors chevrons, `arrow-left`, `arrow-up-right`, `undo`, `redo`
+  under `:dir(rtl)` (`no-mirror` opts out). New exports `directionOf()`, `inlineStep()`, `DIRECTIONAL_ICONS`;
+  `monthKeyMove()` takes a direction.
+- **i18n.** `setKitStrings()` re-renders every mounted element (and `onKitStrings()` tells app code);
+  `kitStrings.breadcrumb` names the breadcrumb nav (was a hard-coded "Breadcrumb"). Command-list placeholder and empty
+  text default to the current strings at render time.
+- **Toasts** show a tone icon (info, check, alert — new icons `info`, `alert`) instead of a coloured side stripe.
+- **Tokens.** `data-theme="auto"` follows `prefers-color-scheme`; `data-theme="dark"` scopes a dark section inside a
+  light page; `applyTheme('auto')`, `resolvedTheme()`.
+- **Custom Elements Manifest.** JSDoc on every component (tag, properties, events, slots, CSS parts, custom
+  properties, methods); `npm run build` writes `custom-elements.json` into `packages/ui/dist`, and the package.json has
+  `"customElements"`.
+- **Docs site** (`site/`, nothing published): guides and a page per component with live demos (page / light / dark,
+  RTL) and API tables from the manifest. `npm run docs:dev`, `docs:build` → `site/dist`, `docs:shots` (screenshots +
+  axe); `.github/workflows/pages.yml` deploys to GitHub Pages only when run by hand.
+
 ## 0.2.0 — 2026-11-25
 
 Hardening, a month picker, and the npm scope.
