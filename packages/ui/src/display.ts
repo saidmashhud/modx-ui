@@ -26,6 +26,16 @@ export class MxKbd extends MxElement {
 define('mx-kbd', MxKbd);
 
 /* ───────────── mx-avatar ───────────── */
+/** Initials colour on a disc: white, or near-black on a light `#rrggbb` (user-picked colours like #4cb782 gave white
+ * initials 2.5:1). WCAG relative luminance; dark text above 0.18 keeps the better of the two ratios. */
+export function initialsColor(bg: string): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(bg.trim());
+  if (!m) return 'var(--mx-gray-0)';
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(m[1]!.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  const lum = 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+  return lum > 0.18 ? 'var(--mx-gray-950)' : 'var(--mx-gray-0)';
+}
+
 /**
  * Initials on a colour disc (`role="img"` named by `name`); without a name, a dashed "unassigned" placeholder.
  *
@@ -59,7 +69,7 @@ export class MxAvatar extends MxElement {
       return html`<span class="empty" style="width:${s}px;height:${s}px" role="img" aria-label=${kitStrings.unassigned}><mx-icon name="user" size=${Math.round(s * 0.6)}></mx-icon></span>`;
     }
     const initials = this.name.split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
-    return html`<span style="width:${s}px;height:${s}px;font-size:${Math.round(s * 0.42)}px;background:${this.color || 'var(--mx-gray-600)'}"
+    return html`<span style="width:${s}px;height:${s}px;font-size:${Math.round(s * 0.42)}px;background:${this.color || 'var(--mx-gray-600)'};color:${initialsColor(this.color)}"
       role="img" aria-label=${this.name} title=${this.name}>${initials}</span>`;
   }
 }

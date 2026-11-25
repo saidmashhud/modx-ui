@@ -129,8 +129,8 @@ describe('mx-date-picker (day)', () => {
     expect(el.checkValidity()).toBe(true);
   });
 
-  it('is accessible closed and open', async () => {
-    const { root, el, trigger } = await picker('value="2026-11-18"');
+  it('is accessible closed and open (required too)', async () => {
+    const { root, el, trigger } = await picker('value="2026-11-18" required');
     await expectAccessible(root);
     await open(el, trigger);
     await expectAccessible(root);

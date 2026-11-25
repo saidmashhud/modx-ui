@@ -765,7 +765,7 @@ export class MxDatePicker extends MxElement {
       <button class="trigger" part="trigger" type="button" aria-haspopup="dialog" aria-expanded=${this.open ? 'true' : 'false'}
         aria-labelledby=${this.label ? `${this.uid}-l ${this.uid}-v` : nothing} aria-label=${this.label ? nothing : this.placeholder || pickLabel}
         aria-controls=${this.open ? `${this.uid}-cal` : nothing}
-        aria-required=${this.required ? 'true' : nothing} ?disabled=${this.off} @click=${() => (this.open ? this.hide() : this.show())}
+        ?disabled=${this.off} @click=${() => (this.open ? this.hide() : this.show())}
         @keydown=${(e: KeyboardEvent) => { if (!this.open && (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); this.show(); } }}>
         <span class="ic"><mx-icon name="calendar" size="14"></mx-icon></span>
         <span id="${this.uid}-v" style="display:contents">${this.display()}</span>

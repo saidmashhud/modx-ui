@@ -8,6 +8,7 @@ describe('display components', () => {
   it('avatar, chip, kbd, spinner, status / priority icons, stat, empty are accessible', async () => {
     const { root } = await mount(`
       <mx-avatar name="Ada Lovelace"></mx-avatar> <mx-avatar></mx-avatar>
+      <mx-avatar name="Alan Turing" color="#4cb782"></mx-avatar> <mx-avatar name="Grace Hopper" color="#f2994a"></mx-avatar> <mx-avatar name="Edsger Dijkstra" color="#4743ff"></mx-avatar>
       <mx-chip color="#4cb782">Design</mx-chip> <mx-chip removable>Filter</mx-chip> <mx-kbd>⌘</mx-kbd><mx-kbd>K</mx-kbd>
       <mx-spinner></mx-spinner> <mx-status-icon status="in_progress"></mx-status-icon> <mx-priority-icon priority="2"></mx-priority-icon>
       <mx-icon name="calendar" label="Due date"></mx-icon>

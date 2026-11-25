@@ -18,3 +18,13 @@ describe('right-to-left keys', () => {
     expect(monthKeyMove('2026-06', 'ArrowLeft', 4)).toBe('2026-05');
   });
 });
+
+import { initialsColor } from '../src/display.js';
+describe('mx-avatar initials', () => {
+  it('dark on light discs, white on dark ones and on non-hex colours', () => {
+    expect(initialsColor('#4cb782')).toBe('var(--mx-gray-950)');
+    expect(initialsColor('#f2c94c')).toBe('var(--mx-gray-950)');
+    expect(initialsColor('#4743ff')).toBe('var(--mx-gray-0)');
+    expect(initialsColor('var(--mx-gray-600)')).toBe('var(--mx-gray-0)');
+  });
+});
