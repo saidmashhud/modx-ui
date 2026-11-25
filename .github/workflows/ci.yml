@@ -22,3 +22,41 @@ jobs:
         run: npm run build
       - name: build the example
         run: npm run build:example
+
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: install Playwright browsers
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: component tests in Chromium, Firefox and WebKit (+ axe-core, light and dark)
+        run: npm run test:browser
+      - name: visual regression (Chromium, Linux baselines)
+        id: visual
+        run: |
+          if ls test/browser/__screenshots__/*/*-chromium-linux.png >/dev/null 2>&1; then
+            npm run test:visual
+          else
+            echo "No Linux baselines yet: making them (download the artifact, review, commit)."
+            npm run test:visual -- --update
+            echo "made=1" >> "$GITHUB_OUTPUT"
+          fi
+      - name: upload new Linux baselines
+        if: steps.visual.outputs.made == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-baselines-linux
+          path: test/browser/__screenshots__/**/*-chromium-linux.png
+      - name: upload screenshot diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-diffs
+          path: |
+            test/browser/__screenshots__/**
+            .vitest-attachments/**
