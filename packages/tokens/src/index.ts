@@ -11,10 +11,18 @@ export const swatches = [
   '#4743ff', '#a46bff', '#26b5ce', '#4cb782', '#f2c94c', '#f2994a', '#f2555a', '#a3a3a3',
 ] as const;
 
-export type Theme = 'dark' | 'light';
+/** `auto` follows the system (prefers-color-scheme): light when it asks for light, dark otherwise. */
+export type Theme = 'dark' | 'light' | 'auto';
 
+/** Set `data-theme` on `root` (default <html>; any element scopes a section). */
 export function applyTheme(theme: Theme, root: HTMLElement = document.documentElement): void {
   root.dataset.theme = theme;
+}
+
+/** The theme `auto` resolves to right now (or `theme` itself when it is dark / light). */
+export function resolvedTheme(theme: Theme, win: Pick<Window, 'matchMedia'> | undefined = typeof window === 'undefined' ? undefined : window): 'dark' | 'light' {
+  if (theme !== 'auto') return theme;
+  return win?.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
 export interface ViewportTracking {

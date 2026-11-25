@@ -179,6 +179,37 @@
   --mx-backdrop: rgba(29, 30, 31, 0.35);
 }
 
+/* data-theme="auto": the light theme while the system asks for it (prefers-color-scheme), dark otherwise. Same values
+ * as the light block above (test/contrast.test.ts keeps them equal). */
+@media (prefers-color-scheme: light) {
+  :root[data-theme="auto"],
+  [data-theme="auto"] {
+    color-scheme: light;
+    --mx-bg: var(--mx-gray-50);
+    --mx-bg-sunken: var(--mx-gray-100);
+    --mx-surface: var(--mx-gray-0);
+    --mx-surface-raised: var(--mx-gray-0);
+    --mx-surface-overlay: var(--mx-gray-0);
+    --mx-surface-hover: rgba(29, 30, 31, 0.04);
+    --mx-surface-active: rgba(29, 30, 31, 0.07);
+    --mx-surface-selected: rgba(71, 67, 255, 0.1);
+    --mx-border: var(--mx-gray-200);
+    --mx-border-strong: var(--mx-gray-300);
+    --mx-text: var(--mx-gray-950);
+    --mx-text-secondary: var(--mx-gray-700);
+    /* WCAG on white and --mx-bg: muted ≥ 4.5:1 (body text), faint ≥ 3:1 (placeholders, hints — never the only
+     * carrier of meaning), danger ≥ 4.5:1 (error messages). Checked in test/contrast.test.ts. */
+    --mx-text-muted: var(--mx-gray-550);
+    --mx-text-faint: var(--mx-gray-450);
+    --mx-danger: var(--mx-red-600);
+    --mx-accent-text: var(--mx-indigo-700);
+    --mx-focus-ring: 0 0 0 2px var(--mx-bg), 0 0 0 4px var(--mx-indigo-500);
+    --mx-shadow-popover: 0 0 0 1px var(--mx-gray-200), 0 12px 32px rgba(29, 30, 31, 0.14);
+    --mx-shadow-dialog: 0 0 0 1px var(--mx-gray-200), 0 24px 64px rgba(29, 30, 31, 0.2);
+    --mx-backdrop: rgba(29, 30, 31, 0.35);
+  }
+}
+
 /* Touch: 44px targets (WCAG 2.5.5 / Apple HIG). */
 @media (pointer: coarse) {
   :root { --mx-row-height: 44px; --mx-header-height: 52px; --mx-field-size: 16px;

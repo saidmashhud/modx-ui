@@ -38,3 +38,11 @@ describe('light theme contrast (WCAG 2.x)', () => {
     for (const [g, c] of Object.entries(grounds)) expect(ratio(hex(name), c), `${name} on ${g}`).toBeGreaterThanOrEqual(min);
   });
 });
+
+describe('data-theme="auto"', () => {
+  it('declares exactly the light theme under prefers-color-scheme: light', () => {
+    const auto = block(/@media \(prefers-color-scheme: light\)\s*\{\s*:root\[data-theme="auto"\],\s*\[data-theme="auto"\]\s*/);
+    const lightOnly = block(/:root\[data-theme="light"\],\s*\[data-theme="light"\]\s*/);
+    expect(auto).toEqual(lightOnly);
+  });
+});
