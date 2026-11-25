@@ -137,11 +137,11 @@ export class DocShell extends LitElement {
       <header>
         <mx-button class="menu" variant="ghost" icon="sidebar" icon-only label="Site map" aria-expanded=${this.navOpen ? 'true' : 'false'}
           @click=${() => this.setNav(!this.navOpen)}></mx-button>
-        <a class="brand" href="index.html" aria-label="modx-ui, overview"><span class="mark">${mark}</span><b>modx-ui</b><small>${VERSION}</small></a>
+        <a class="brand" href="index.html"><span class="mark">${mark}</span><b>modx-ui</b><small>${VERSION}</small></a>
         <mx-segmented size="sm" label="Theme" .value=${this.theme}
           .options=${[{ value: 'auto', label: 'Auto' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }]}
           @mx-change=${(e: CustomEvent<Theme>) => this.setTheme(e.detail)}></mx-segmented>
-        <a class="repo" href="https://github.com/saidmashhud/modx-ui"><span>GitHub</span><mx-icon name="arrow-up-right" size="14"></mx-icon></a>
+        <a class="repo" href="https://github.com/saidmashhud/modx-ui" aria-label="GitHub repository"><span>GitHub</span><mx-icon name="arrow-up-right" size="14"></mx-icon></a>
       </header>
       <aside aria-label="Site map" @mx-navigate=${(e: CustomEvent<string>) => { location.href = e.detail; }}>
         <nav aria-label="Documentation">

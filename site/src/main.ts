@@ -16,3 +16,6 @@ for (const el of document.querySelectorAll<DocDemo>('doc-demo[data-demo]')) {
 
 /* demos that `import { … } from '@saidmashhud/modx-ui'` run against this instance (see demo.ts) */
 (window as unknown as { __modxUi: typeof kit }).__modxUi = kit;
+
+/* code blocks that scroll sideways must be reachable by keyboard */
+for (const pre of document.querySelectorAll<HTMLElement>('.prose pre')) if (!pre.hasAttribute('tabindex')) pre.tabIndex = 0;

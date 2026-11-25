@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Screenshots of the built docs site (npm run docs:build first): desktop 1440 × 900 and phone 390 × 844, light and
- * dark, full page, into site-shots/ (git-ignored). Also fails on console errors and on pages wider than the viewport.
+ * dark, full page, into site-shots/ (git-ignored). Fails on console errors, on pages wider than the viewport, and on
+ * axe-core (WCAG 2.x A / AA) violations.
  *
  *   node scripts/site-shots.mjs [page ...]      e.g. index mx-select
  */
@@ -9,6 +10,7 @@ import { createServer } from 'node:http';
 import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { chromium } from 'playwright';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -30,6 +32,7 @@ const all = readdirSync(dist).filter((f) => f.endsWith('.html')).map((f) => f.re
 const pages = process.argv.slice(2).length ? process.argv.slice(2) : all;
 const views = [{ name: 'desktop', viewport: { width: 1440, height: 900 } }, { name: 'mobile', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }];
 const problems = [];
+const axeSource = readFileSync(createRequire(import.meta.url).resolve('axe-core/axe.min.js'), 'utf8');
 
 const browser = await chromium.launch();
 for (const view of views) {
@@ -45,6 +48,10 @@ for (const view of views) {
       await page.waitForTimeout(400);
       const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       if (over > 0) problems.push(`${p} [${view.name}/${theme}] ${over}px wider than the viewport`);
+      await page.addScriptTag({ content: axeSource });
+      const violations = await page.evaluate(async () => (await window.axe.run(document, { runOnly: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] }))
+        .violations.map((v) => `${v.id} (${v.nodes.map((n) => n.target.join(' ')).slice(0, 3).join(' | ')})`));
+      for (const v of violations) problems.push(`${p} [${view.name}/${theme}] axe: ${v}`);
       await page.screenshot({ path: join(out, `${p}-${view.name}-${theme}.png`), fullPage: true });
       await page.close();
     }
