@@ -720,6 +720,7 @@ export class MxDatePicker extends MxElement {
       ${this.label ? html`<label id="${this.uid}-l" @click=${() => this.trigger?.focus()}>${this.label}</label>` : nothing}
       <button class="trigger" part="trigger" type="button" aria-haspopup="dialog" aria-expanded=${this.open ? 'true' : 'false'}
         aria-labelledby=${this.label ? `${this.uid}-l ${this.uid}-v` : nothing} aria-label=${this.label ? nothing : this.placeholder || pickLabel}
+        aria-controls=${this.open ? `${this.uid}-cal` : nothing}
         aria-required=${this.required ? 'true' : nothing} ?disabled=${this.off} @click=${() => (this.open ? this.hide() : this.show())}
         @keydown=${(e: KeyboardEvent) => { if (!this.open && (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); this.show(); } }}>
         <span class="ic"><mx-icon name="calendar" size="14"></mx-icon></span>
@@ -727,7 +728,7 @@ export class MxDatePicker extends MxElement {
       </button>
       <mx-popover @mx-open=${(e: Event) => e.stopPropagation()}
         @mx-close=${(e: Event) => { e.stopPropagation(); this.open = false; this.trigger?.focus(); }}>
-        ${this.open && this.isMonth ? html`<div class="cal" role="dialog" aria-modal="false" aria-label=${this.label || pickLabel}
+        ${this.open && this.isMonth ? html`<div class="cal" id="${this.uid}-cal" role="dialog" aria-modal="false" aria-label=${this.label || pickLabel}
             @keydown=${(e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.hide(); } }}>
           <div class="top">
             <button class="nav" type="button" aria-label=${kitStrings.prevYear} @click=${() => { this.focusMonth = addMonthsYm(this.focusMonth, -12); }}><mx-icon name="chevron-left" size="14"></mx-icon></button>
@@ -739,7 +740,7 @@ export class MxDatePicker extends MxElement {
             <button class="link" type="button" @click=${() => { const t = thisMonth(); this.focusMonth = t; this.commitMonth(t); }}>${kitStrings.thisMonth}</button>
             ${this.clearable && has ? html`<button class="link" type="button" @click=${() => this.commitMonth('')}>${kitStrings.clear}</button>` : nothing}
           </div>
-        </div>` : this.open ? html`<div class="cal" role="dialog" aria-modal="false" aria-label=${this.label || pickLabel}
+        </div>` : this.open ? html`<div class="cal" id="${this.uid}-cal" role="dialog" aria-modal="false" aria-label=${this.label || pickLabel}
             @keydown=${(e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.hide(); } }}>
           <input class="typed" aria-label=${hint} placeholder=${hint}
             .value=${this.range ? '' : this.ms != null ? this.fmt(msToDay(this.ms), { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''}
