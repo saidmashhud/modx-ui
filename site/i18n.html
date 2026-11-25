@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>i18n and RTL · modx-ui</title>
+    <script type="module" src="./src/main.ts"></script>
+    <style>
+      .lab { border: 1px solid var(--mx-border); border-radius: var(--mx-radius-xl); overflow: hidden; margin: 0 0 var(--mx-space-8); background: var(--mx-surface); }
+      .lab-bar { display: flex; align-items: center; gap: var(--mx-space-3); flex-wrap: wrap; padding: var(--mx-space-2) var(--mx-space-4); border-block-end: 1px solid var(--mx-border); }
+      .lab-bar b { font-weight: var(--mx-weight-medium); color: var(--mx-text); margin-inline-end: auto; font-size: var(--mx-text-md); }
+      .lab-stage { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--mx-space-4); padding: var(--mx-space-6); background: var(--mx-bg); align-items: end; }
+    </style>
+  </head>
+  <body>
+    <doc-shell page="i18n">
+      <article class="prose">
+        <p class="eyebrow">Guide</p>
+        <h1>i18n and right-to-left</h1>
+        <p class="lead">The kit’s own words, its date locale and its first day of the week come from one object, <code>kitStrings</code>.
+          Layout and keys follow the writing direction of wherever an element sits.</p>
+
+        <section class="lab" aria-labelledby="lab-t">
+          <div class="lab-bar">
+            <b id="lab-t">Switch language and direction on a live page</b>
+            <mx-segmented id="lang" size="sm" label="Language"></mx-segmented>
+          </div>
+          <div class="lab-stage" id="lab">
+            <mx-date-picker id="lab-date" value="2026-11-18" block></mx-date-picker>
+            <mx-select id="lab-sel" block></mx-select>
+            <mx-breadcrumbs id="lab-crumbs" current="ENG-142"></mx-breadcrumbs>
+            <span><mx-switch checked id="lab-switch">On</mx-switch></span>
+          </div>
+        </section>
+
+        <h2>Strings and locale</h2>
+        <p>Call <code>setKitStrings()</code> at startup — or any time later: every mounted element re-renders with the new words, and dates
+          reformat. <code>onKitStrings()</code> tells your own code.</p>
+        <pre><code>import { setKitStrings, onKitStrings } from '@saidmashhud/modx-ui';
+
+setKitStrings({
+  locale: 'ru-RU', weekStart: 1,            // dates, month names, typed-date order
+  search: 'Поиск…', noResults: 'Ничего не найдено', select: 'Выберите…',
+  pickDate: 'Выберите дату', today: 'Сегодня', clear: 'Очистить',
+  close: 'Закрыть', dismiss: 'Скрыть', remove: 'Удалить', loading: 'Загрузка',
+  breadcrumb: 'Навигация', valueMissing: 'Заполните это поле.',
+});
+const off = onKitStrings((s) =&gt; document.documentElement.lang = s.locale);</code></pre>
+        <p>The date picker reads typed dates in the locale’s order (<code>11/21/2026</code> in en-US, <code>21.11.2026</code> in ru-RU) and ISO
+          <code>2026-11-21</code> everywhere; its hint is derived from the locale unless <code>dateFormatHint</code> says otherwise.
+          Month names in headings use the standalone (nominative) form.</p>
+
+        <h2>Right to left</h2>
+        <p>Put <code>dir="rtl"</code> on <code>&lt;html&gt;</code> or on any section. The elements read the direction that applies to them —
+          the nearest <code>dir</code>, across shadow roots, or CSS <code>direction</code> — so one page can mix both.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th scope="col">What</th><th scope="col">In RTL</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Layout</th><td>Logical properties everywhere (<code>padding-inline</code>, <code>inset-inline-end</code>, <code>border-inline-start</code>…).</td></tr>
+              <tr><th scope="row">Popovers, selects, pickers</th><td><code>bottom-start</code> lines up with the anchor’s right edge; <code>right-start</code> submenus open to the left. <code>openPicker()</code> carries the anchor’s direction to the popover it mounts in <code>&lt;body&gt;</code>.</td></tr>
+              <tr><th scope="row">Toasts</th><td>Bottom left (the inline end).</td></tr>
+              <tr><th scope="row">Switch</th><td>Off on the right, on at the left.</td></tr>
+              <tr><th scope="row">Arrow keys</th><td>← and → are mirrored in the calendar, the month grid and <code>mx-segmented</code>: → goes to the previous item.</td></tr>
+              <tr><th scope="row">Icons</th><td>Chevrons, <code>arrow-left</code>, <code>arrow-up-right</code>, <code>undo</code> and <code>redo</code> are mirrored; <code>no-mirror</code> keeps one as drawn.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <pre><code>import { directionOf, inlineStep, position } from '@saidmashhud/modx-ui';
+
+directionOf(el);                       // 'ltr' | 'rtl', as the element sees it
+inlineStep(event.key, directionOf(el)); // ArrowRight → 1 in LTR, -1 in RTL
+position(panel, anchor, 'bottom-start'); // logical; pass a 5th argument to force a direction</code></pre>
+        <p class="note">Mirroring of icons uses the <code>:dir()</code> selector, which follows <code>dir</code> attributes. If you set direction with
+          CSS only, keys and positions still follow it, but put <code>dir</code> on the root too so icons turn.</p>
+      </article>
+    </doc-shell>
+    <script type="module">
+      import { setKitStrings } from '@saidmashhud/modx-ui';
+      const $ = (s) => document.querySelector(s);
+      const LANGS = {
+        en: { dir: 'ltr', s: { locale: 'en-US', weekStart: 0, select: 'Select…', pickDate: 'Pick a date', today: 'Today', clear: 'Clear', search: 'Search…', breadcrumb: 'Breadcrumb' },
+          labels: ['Due', 'Status', 'On'], opts: ['Todo', 'In progress', 'Done'], crumbs: ['Engineering', 'Mobile'] },
+        ru: { dir: 'ltr', s: { locale: 'ru-RU', weekStart: 1, select: 'Выберите…', pickDate: 'Выберите дату', today: 'Сегодня', clear: 'Очистить', search: 'Поиск…', breadcrumb: 'Навигация' },
+          labels: ['Срок', 'Статус', 'Вкл.'], opts: ['К работе', 'В работе', 'Готово'], crumbs: ['Разработка', 'Мобильное'] },
+        ar: { dir: 'rtl', s: { locale: 'ar-EG', weekStart: 6, select: 'اختر…', pickDate: 'اختر تاريخًا', today: 'اليوم', clear: 'مسح', search: 'بحث…', breadcrumb: 'مسار التنقل' },
+          labels: ['الموعد', 'الحالة', 'تشغيل'], opts: ['للتنفيذ', 'قيد التنفيذ', 'تم'], crumbs: ['الهندسة', 'الجوال'] },
+      };
+      const apply = (k) => {
+        const l = LANGS[k];
+        setKitStrings(l.s);
+        const lab = $('#lab');
+        lab.dir = l.dir;
+        lab.lang = l.s.locale;
+        $('#lab-date').label = l.labels[0];
+        $('#lab-sel').label = l.labels[1];
+        $('#lab-sel').options = l.opts.map((label, i) => ({ value: String(i), label }));
+        $('#lab-switch').textContent = l.labels[2];
+        $('#lab-crumbs').items = l.crumbs.map((label) => ({ label, href: '#' }));
+      };
+      const lang = $('#lang');
+      lang.options = [{ value: 'en', label: 'English' }, { value: 'ru', label: 'Русский' }, { value: 'ar', label: 'العربية' }];
+      lang.value = 'en';
+      lang.addEventListener('mx-change', (e) => apply(e.detail));
+      apply('en');
+    </script>
+  </body>
+</html>

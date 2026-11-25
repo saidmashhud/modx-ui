@@ -22,6 +22,8 @@ jobs:
         run: npm run build
       - name: build the example
         run: npm run build:example
+      - name: build the docs site (site/dist)
+        run: npm run docs:build
 
   browser:
     runs-on: ubuntu-latest

@@ -9,3 +9,5 @@ test/browser/__screenshots__/**/*-actual*.png
 test/browser/__screenshots__/**/*-diff*.png
 .cem/
 .cem-out/
+site/src/generated/
+site/mx-*.html

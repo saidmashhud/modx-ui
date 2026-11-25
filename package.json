@@ -9,12 +9,16 @@
   ],
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "node scripts/manifest.mjs site/src/generated/custom-elements.json && tsc -p tsconfig.json --noEmit",
     "build:example": "npm run build -w modx-example-todo",
     "dev:example": "npm run dev -w modx-example-todo",
     "build": "node scripts/build-packages.mjs",
     "test:browser": "vitest run -c vitest.browser.config.ts --project browser",
-    "test:visual": "vitest run -c vitest.browser.config.ts --project visual"
+    "test:visual": "vitest run -c vitest.browser.config.ts --project visual",
+    "docs:dev": "vite --config site/vite.config.ts",
+    "docs:build": "vite build --config site/vite.config.ts",
+    "docs:preview": "vite preview --config site/vite.config.ts",
+    "docs:shots": "node scripts/site-shots.mjs"
   },
   "devDependencies": {
     "@custom-elements-manifest/analyzer": "^0.11.0",

@@ -15,13 +15,15 @@
     "useDefineForClassFields": false,
     "skipLibCheck": true,
     "isolatedModules": true,
-    "noEmit": true
+    "noEmit": true,
+    "resolveJsonModule": true
   },
   "include": [
     "packages/*/src",
     "packages/*/test",
     "examples/*/src",
     "test",
-    "vitest.browser.config.ts"
+    "vitest.browser.config.ts",
+    "site/src"
   ]
 }

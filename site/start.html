@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Getting started · modx-ui</title>
+    <script type="module" src="./src/main.ts"></script>
+  </head>
+  <body>
+    <doc-shell page="start">
+      <article class="prose">
+        <p class="eyebrow">Guide</p>
+        <h1>Getting started</h1>
+        <p class="lead">Install from npm, or vendor the repository. Load the tokens once, register the elements, and use them as HTML.</p>
+
+        <ol class="steps">
+          <li>
+            <h3>Install</h3>
+            <p>From npm. <code>lit</code> is a peer dependency of the UI package; the store needs <code>rxjs</code>.</p>
+            <pre><code>npm install @saidmashhud/modx-ui @saidmashhud/modx-tokens lit
+npm install @saidmashhud/modx-store rxjs      # optional: state and sync</code></pre>
+            <p>Or vendor it: the source packages point at their TypeScript (<code>main: src/index.ts</code>), so a copy of
+              <code>packages/ui</code>, <code>packages/tokens</code> and <code>packages/store</code> in your workspace builds with any
+              bundler (Vite, esbuild, Rollup) and no build step of its own. No decorators: any TypeScript setting works.</p>
+          </li>
+          <li>
+            <h3>Load the tokens</h3>
+            <p>Once, before the first element renders. They are CSS custom properties on <code>:root</code>; the elements read them through their shadow roots.</p>
+            <pre><code>import '@saidmashhud/modx-tokens/tokens.css';</code></pre>
+            <p>Without a bundler, link <code>node_modules/@saidmashhud/modx-tokens/tokens.css</code> from your HTML.</p>
+          </li>
+          <li>
+            <h3>Register the elements</h3>
+            <p>Everything at once, or only what a page uses (each module registers its own tags; the package marks them as side effects).</p>
+            <pre><code>import '@saidmashhud/modx-ui';                  // all mx-* elements
+import '@saidmashhud/modx-ui/pickers.js';       // or: mx-select and mx-date-picker only
+import { openPicker, setKitStrings } from '@saidmashhud/modx-ui';</code></pre>
+          </li>
+          <li>
+            <h3>Use them</h3>
+            <p>Attributes for strings, numbers and booleans; properties for arrays and objects (<code>options</code>, <code>items</code>). Events are
+              <code>mx-*</code> CustomEvents that bubble and cross shadow roots.</p>
+            <doc-demo data-demo="mx-select:0"></doc-demo>
+          </li>
+        </ol>
+
+        <h2>Set the page up</h2>
+        <ul>
+          <li>Give <code>body</code> the kit’s ground and text: <code>background: var(--mx-bg); color: var(--mx-text); font-family: var(--mx-font-sans)</code>.</li>
+          <li>Load Inter and Space Grotesk (the families <code>--mx-font-sans</code> and <code>--mx-font-display</code> name), or override those two properties.</li>
+          <li>Pick a theme: dark is the default; <code>data-theme="light"</code> or <code>"auto"</code> on <code>&lt;html&gt;</code>. See <a href="theming.html">Theming</a>.</li>
+          <li>Phones: call <code>trackViewport()</code> from the tokens package once, so sheets and full-screen dialogs stay above the on-screen keyboard.</li>
+        </ul>
+
+        <h2>Browser support</h2>
+        <p>Current Chromium, Firefox and Safari (WebKit), the engines the tests run in. The kit relies on the Popover API, <code>&lt;dialog&gt;</code>,
+          <code>:dir()</code>, <code>color-mix()</code>, CSS logical properties and ElementInternals — Chrome 125+, Firefox 125+ and Safari 17.4+ have all of them.
+          Where ElementInternals is missing the fields still work; they just do not take part in form submission.</p>
+
+        <h2>Editors and tooling</h2>
+        <p>The UI package ships a Custom Elements Manifest (<code>"customElements": "./custom-elements.json"</code> in its package.json). Editors and
+          tools that read it (VS Code custom data generators, Storybook, linters) know every tag, attribute, event, slot and CSS part. These docs build their
+          API tables from the same file.</p>
+      </article>
+    </doc-shell>
+  </body>
+</html>

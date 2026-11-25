@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Forms · modx-ui</title>
+    <script type="module" src="./src/main.ts"></script>
+    <style>
+      .form-lab { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr); border: 1px solid var(--mx-border); border-radius: var(--mx-radius-xl);
+        overflow: hidden; margin: 0 0 var(--mx-space-8); background: var(--mx-surface); }
+      .form-lab form { display: grid; gap: var(--mx-space-4); padding: var(--mx-space-6); background: var(--mx-bg); }
+      .form-lab fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: var(--mx-space-4); }
+      .form-lab .two { display: grid; grid-template-columns: 1fr 1fr; gap: var(--mx-space-3); }
+      .form-lab .buttons { display: flex; gap: var(--mx-space-2); justify-content: flex-end; flex-wrap: wrap; }
+      .form-lab aside { padding: var(--mx-space-5); border-inline-start: 1px solid var(--mx-border); display: grid; align-content: start; gap: var(--mx-space-2); }
+      .form-lab aside h3 { margin: 0; font-family: var(--mx-font-sans); font-size: var(--mx-text-sm); color: var(--mx-text-muted); text-transform: uppercase; letter-spacing: var(--mx-tracking-eyebrow); }
+      .form-lab dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: var(--mx-text-md); }
+      .form-lab dt { color: var(--mx-text-muted); }
+      .form-lab dd { margin: 0; color: var(--mx-text); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+      @media (max-width: 760px) { .form-lab { grid-template-columns: minmax(0, 1fr); } .form-lab aside { border-inline-start: 0; border-block-start: 1px solid var(--mx-border); } .form-lab .two { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <doc-shell page="forms">
+      <article class="prose">
+        <p class="eyebrow">Guide</p>
+        <h1>Forms</h1>
+        <p class="lead">The fields are form-associated custom elements: inside a plain <code>&lt;form&gt;</code> they submit under their <code>name</code>,
+          block submission while <code>required</code> and empty, follow a disabled <code>&lt;fieldset&gt;</code>, reset, and come back on
+          back / forward navigation — through ElementInternals, no hidden inputs.</p>
+
+        <div class="form-lab">
+          <form id="issue-form">
+            <mx-input name="title" label="Title" required placeholder="What needs doing?"></mx-input>
+            <div class="two">
+              <mx-select id="f-status" name="status" label="Status" value="todo" block></mx-select>
+              <mx-select id="f-labels" name="labels" label="Labels" multiple block></mx-select>
+            </div>
+            <div class="two">
+              <mx-date-picker name="due" label="Due" required block></mx-date-picker>
+              <mx-date-picker name="cycle" label="Cycle" range block></mx-date-picker>
+            </div>
+            <fieldset id="notify-set">
+              <mx-switch name="notify" value="yes" checked>Notify watchers</mx-switch>
+            </fieldset>
+            <div class="buttons">
+              <mx-button id="toggle-set" variant="ghost">Disable the fieldset</mx-button>
+              <mx-button type="reset">Reset</mx-button>
+              <mx-button type="submit" variant="primary">Create issue</mx-button>
+            </div>
+          </form>
+          <aside aria-live="polite">
+            <h3>Submitted FormData</h3>
+            <dl id="out"><dt>—</dt><dd>Fill in the form and submit.</dd></dl>
+          </aside>
+        </div>
+
+        <h2>What each field submits</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th scope="col">Element</th><th scope="col">Value in FormData</th><th scope="col"><code>required</code> means</th></tr></thead>
+            <tbody>
+              <tr><th scope="row"><code>mx-input</code></th><td>The text.</td><td>Not empty.</td></tr>
+              <tr><th scope="row"><code>mx-select</code></th><td>The value; with <code>multiple</code>, one entry per value.</td><td>Something chosen.</td></tr>
+              <tr><th scope="row"><code>mx-date-picker</code></th><td><code>YYYY-MM-DD</code>; a range: start and end under the same name; <code>mode="month"</code>: <code>YYYY-MM</code>.</td><td>A value (a range: both ends).</td></tr>
+              <tr><th scope="row"><code>mx-switch</code></th><td>Like a checkbox: <code>value</code> (default <code>on</code>) while on, nothing while off.</td><td>On.</td></tr>
+              <tr><th scope="row"><code>mx-button</code></th><td>—; <code>type="submit"</code> submits, <code>type="reset"</code> resets the button’s form (its <code>form</code> attribute works too).</td><td>—</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Each field also has <code>form</code>, <code>validity</code>, <code>validationMessage</code>, <code>checkValidity()</code> and
+          <code>reportValidity()</code>. The browser’s message for a missing value is <code>kitStrings.valueMissing</code>.</p>
+        <pre><code>const form = document.querySelector('form');
+form.addEventListener('submit', (e) =&gt; {
+  e.preventDefault();
+  const data = new FormData(form);
+  data.get('title');          // "Ship the docs"
+  data.getAll('labels');      // ["docs", "design"]
+  data.getAll('cycle');       // ["2026-11-02", "2026-11-15"]
+});</code></pre>
+        <p class="note">Reset restores each field to its initial attributes (<code>value</code>, <code>start</code> / <code>end</code>, <code>checked</code>), as native inputs do.</p>
+      </article>
+    </doc-shell>
+    <script type="module">
+      const $ = (s) => document.querySelector(s);
+      $('#f-status').options = [{ value: 'todo', label: 'Todo' }, { value: 'doing', label: 'In progress' }, { value: 'done', label: 'Done' }];
+      $('#f-labels').options = ['Bug', 'Feature', 'Design', 'Docs'].map((l) => ({ value: l.toLowerCase(), label: l }));
+      const form = $('#issue-form');
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const out = $('#out');
+        out.replaceChildren();
+        for (const [k, v] of new FormData(form)) {
+          const dt = document.createElement('dt'); dt.textContent = k;
+          const dd = document.createElement('dd'); dd.textContent = String(v);
+          out.append(dt, dd);
+        }
+      });
+      const set = $('#notify-set');
+      $('#toggle-set').addEventListener('click', (e) => {
+        set.disabled = !set.disabled;
+        e.currentTarget.textContent = set.disabled ? 'Enable the fieldset' : 'Disable the fieldset';
+      });
+    </script>
+  </body>
+</html>

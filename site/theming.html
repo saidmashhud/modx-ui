@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Theming · modx-ui</title>
+    <script type="module" src="./src/main.ts"></script>
+    <style>
+      .swatch { display: inline-block; width: 28px; height: 20px; border-radius: var(--mx-radius-md); box-shadow: inset 0 0 0 1px var(--mx-border-strong); vertical-align: middle; }
+      .sample { display: inline-block; padding: 2px 8px; border-radius: var(--mx-radius-md); background: var(--mx-surface); }
+      .themes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--mx-space-3); margin: 0 0 var(--mx-space-6); }
+      .themes > section { padding: var(--mx-space-5); border-radius: var(--mx-radius-xl); background: var(--mx-bg); color: var(--mx-text); border: 1px solid var(--mx-border);
+        display: grid; gap: var(--mx-space-3); align-content: start; }
+      .themes h3 { margin: 0; font-size: var(--mx-text-md); }
+      @media (max-width: 640px) { .themes { grid-template-columns: minmax(0, 1fr); } }
+    </style>
+  </head>
+  <body>
+    <doc-shell page="theming">
+      <article class="prose">
+        <p class="eyebrow">Guide</p>
+        <h1>Theming</h1>
+        <p class="lead">Everything the elements draw comes from <code>--mx-*</code> custom properties. Two layers: primitives (a gray scale,
+          the indigo accent, status colours, type, spacing, radii, motion) and semantic tokens (<code>--mx-bg</code>, <code>--mx-text-muted</code>,
+          <code>--mx-accent</code>…) that the themes switch.</p>
+
+        <h2>Dark, light, auto</h2>
+        <p>Dark is the default. Set <code>data-theme</code> on <code>&lt;html&gt;</code>:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th scope="col">Value</th><th scope="col">Result</th></tr></thead>
+            <tbody>
+              <tr><th scope="row"><span class="muted">none</span>, <code>dark</code></th><td>The dark theme.</td></tr>
+              <tr><th scope="row"><code>light</code></th><td>The light theme (text contrast checked by a unit test: muted text 4.5:1, faint 3:1, danger 4.5:1).</td></tr>
+              <tr><th scope="row"><code>auto</code></th><td>Follows the system: light while <code>prefers-color-scheme: light</code>, dark otherwise. Live — no reload.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <pre><code>import { applyTheme, resolvedTheme } from '@saidmashhud/modx-tokens';
+
+applyTheme('auto');                 // sets data-theme on &lt;html&gt;
+resolvedTheme('auto');              // 'dark' | 'light' right now
+applyTheme('light', sidebarEl);     // any element: scopes a section</code></pre>
+
+        <h3>Per section</h3>
+        <p><code>data-theme</code> works on any element: a light card on a dark page, or a dark one on a light page. Everything inside, overlays included, takes that section’s theme.</p>
+        <div class="themes">
+          <section data-theme="dark"><h3>data-theme="dark"</h3><mx-input label="Title" value="Night shift"></mx-input><span><mx-button variant="primary">Save</mx-button> <mx-switch checked>On</mx-switch></span></section>
+          <section data-theme="light"><h3>data-theme="light"</h3><mx-input label="Title" value="Day shift"></mx-input><span><mx-button variant="primary">Save</mx-button> <mx-switch checked>On</mx-switch></span></section>
+        </div>
+
+        <h2>Semantic tokens</h2>
+        <p>The swatches below are live: switch the theme at the top of the page.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th scope="col">Token</th><th scope="col"></th><th scope="col">Used for</th></tr></thead>
+            <tbody>
+              <tr><th scope="row"><code>--mx-bg</code></th><td><span class="swatch" style="background:var(--mx-bg)"></span></td><td>The page.</td></tr>
+              <tr><th scope="row"><code>--mx-surface</code> <code>-raised</code> <code>-overlay</code></th><td><span class="swatch" style="background:var(--mx-surface-overlay)"></span></td><td>Fields, dialogs, popovers (each a step up).</td></tr>
+              <tr><th scope="row"><code>--mx-text</code></th><td><span class="sample" style="color:var(--mx-text)">Aa</span></td><td>Primary text.</td></tr>
+              <tr><th scope="row"><code>--mx-text-secondary</code></th><td><span class="sample" style="color:var(--mx-text-secondary)">Aa</span></td><td>Body text, list rows.</td></tr>
+              <tr><th scope="row"><code>--mx-text-muted</code></th><td><span class="sample" style="color:var(--mx-text-muted)">Aa</span></td><td>Labels, hints — any text that is read (4.5:1).</td></tr>
+              <tr><th scope="row"><code>--mx-text-faint</code></th><td><span class="sample" style="color:var(--mx-text-faint)">Aa</span></td><td>Icons, separators, native placeholders only (3:1).</td></tr>
+              <tr><th scope="row"><code>--mx-border</code> <code>-strong</code></th><td><span class="swatch" style="background:var(--mx-border-strong)"></span></td><td>Hairlines, field borders.</td></tr>
+              <tr><th scope="row"><code>--mx-accent</code></th><td><span class="swatch" style="background:var(--mx-accent)"></span></td><td>The one accent: primary buttons, selection, focus.</td></tr>
+              <tr><th scope="row"><code>--mx-accent-text</code></th><td><span class="sample" style="color:var(--mx-accent-text)">Aa</span></td><td>Links and accent text on the page ground.</td></tr>
+              <tr><th scope="row"><code>--mx-danger</code> <code>--mx-success</code> <code>--mx-warning</code></th><td><span class="swatch" style="background:var(--mx-danger)"></span></td><td>Status.</td></tr>
+              <tr><th scope="row"><code>--mx-focus-ring</code></th><td><span class="swatch" style="box-shadow:var(--mx-focus-ring)"></span></td><td>Every <code>:focus-visible</code>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2>Your brand</h2>
+        <p>Override tokens after <code>tokens.css</code>. Keep the light block in step if you support both themes: semantic tokens are re-declared there.</p>
+        <pre><code>:root {
+  --mx-accent: #0f766e;               /* primary buttons, selection */
+  --mx-accent-hover: #115e59;
+  --mx-accent-text: #5eead4;          /* links on the dark ground */
+  --mx-font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --mx-radius-md: 6px;
+}
+:root[data-theme="light"] { --mx-accent-text: #0f766e; }</code></pre>
+
+        <h2>One component</h2>
+        <p>Each element documents its CSS parts and custom properties on its page (from the manifest). Parts style the inside from outside the shadow root:</p>
+        <pre><code>mx-button.cta::part(button) { border-radius: var(--mx-radius-full); }
+mx-input.search::part(control) { background: var(--mx-bg-sunken); }
+mx-command-list { --mx-list-max-height: 480px; }
+mx-toast-region { --mx-toast-offset: 56px; }   /* above a bottom bar */</code></pre>
+        <p class="note">The kit has no monospace face: figures that must line up use <code>font-variant-numeric: tabular-nums</code> on the sans.</p>
+      </article>
+    </doc-shell>
+  </body>
+</html>

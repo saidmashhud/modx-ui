@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Store and SyncEngine · modx-ui</title>
+    <script type="module" src="./src/main.ts"></script>
+  </head>
+  <body>
+    <doc-shell page="store">
+      <article class="prose">
+        <p class="eyebrow">Guide · @saidmashhud/modx-store</p>
+        <h1>Store and SyncEngine</h1>
+        <p class="lead"><code>SyncEngine</code> is the client half of a <a href="https://github.com/saidmashhud/modx-core">modx-core</a> app: it loads
+          the data once, follows the server’s change stream, shows writes at once, and keeps the ones it could not send — across reloads — until
+          the network is back.</p>
+
+        <h2>The loop</h2>
+        <ol>
+          <li><strong>Bootstrap.</strong> <code>GET bootstrapPath</code> → <code>{ seq, todos: [...] }</code>: one table per collection, at sequence <code>seq</code>.</li>
+          <li><strong>Live.</strong> An SSE stream (<code>eventsPath</code>). On every (re)connection it first asks <code>changesPath(seq)</code> for what it missed;
+            changes are applied once each, by <code>seq</code>. A <code>410</code> (or <code>event: reset</code>) means “too far behind”: bootstrap again.</li>
+          <li><strong>Writes.</strong> <code>create</code> / <code>update</code> / <code>remove</code> change what the UI sees immediately (base + pending writes)
+            and go out one at a time. A 4xx rolls the write back; a network error keeps it queued.</li>
+        </ol>
+        <pre><code>import { createHttpTransport, localStorageSync, SyncEngine } from '@saidmashhud/modx-store';
+
+interface Model { todos: { id: string; title: string; done: boolean } }
+
+const sync = new SyncEngine&lt;Model&gt;({
+  transport: createHttpTransport(),
+  collections: ['todos'],
+  bootstrapPath: '/api/bootstrap',
+  changesPath: (since) =&gt; `/api/changes?since=${since}`,
+  eventsPath: '/api/events',
+  owner: session.userId,                                  // whose data this is
+  storage: localStorageSync('todos', { owner: session.userId }),
+  endpoints: { todos: {
+    create: (row) =&gt; ({ method: 'POST', path: '/api/todos', body: row }),
+    update: (id, patch) =&gt; ({ method: 'PUT', path: `/api/todos/${id}`, body: patch }),
+    remove: (id) =&gt; ({ method: 'DELETE', path: `/api/todos/${id}` }),
+  } },
+});
+
+await sync.start();
+sync.select((t) =&gt; Object.values(t.todos)).subscribe(render);
+const id = sync.create('todos', { title: 'Buy milk', done: false });  // on screen now, temporary id
+sync.update('todos', id, { done: true });                             // follows the real id later</code></pre>
+
+        <h2>Offline queue</h2>
+        <p>Pending writes, the base tables and <code>seq</code> are saved through a <code>SyncStorage</code> after every change
+          (<code>saveDebounceMs</code> coalesces). On the next <code>start()</code> they are loaded back and the queue is sent. Browser
+          <code>offline</code> / <code>online</code> events update <code>status$</code> and reconnect at once instead of waiting out the backoff.</p>
+        <ul>
+          <li><code>localStorageSync(key)</code> for most apps; <code>memoryStorage()</code> in tests; your own <code>{ load, save }</code> for IndexedDB.</li>
+          <li>Temporary ids are replaced by the server’s — also inside writes still waiting in the queue.</li>
+          <li>Several tabs: <code>localStorageSync</code> merges on every save with what another tab stored (union of both queues, minus writes either tab finished).</li>
+        </ul>
+
+        <h2>Idempotency: a retry is applied once</h2>
+        <p>When a write’s answer is lost (the connection drops after the server committed), the client cannot know whether it landed.
+          So every write carries <code>Idempotency-Key: &lt;opId&gt;</code> — the same value on every retry and after a reload, because the
+          <code>opId</code> is stored with the queue. A server that keeps keys (modx-core <code>idem.h</code>) answers a repeat from its record instead of applying it twice.</p>
+        <pre><code>new SyncEngine({
+  // …
+  idempotency: { header: 'Idempotency-Key', key: (w) =&gt; w.opId },  // the default
+  opId: () =&gt; `op_${crypto.randomUUID()}`,                           // unique per account, across tabs and devices
+});</code></pre>
+        <p>Pass <code>idempotency: false</code> to send no header. Keys must be 1–128 printable ASCII characters.</p>
+
+        <h2>Owner scoping</h2>
+        <p>Stored data outlives a session: a sign-out, or another account on the same browser, must not send the previous person’s queued writes.
+          Set <code>owner</code> (a user id, or <code>user@workspace</code>) and pass the same value to <code>localStorageSync</code>. A stored snapshot of another
+          owner — or of another <code>schemaVersion</code> — is not hydrated: its writes are dropped, never sent, and reported.</p>
+        <pre><code>sync.discarded$.subscribe(({ reason, pending }) =&gt; {
+  if (pending.length) toast(`${pending.length} unsent changes from a previous session were discarded (${reason}).`);
+});</code></pre>
+        <p>Bump <code>schemaVersion</code> when stored rows or pending writes change shape.</p>
+
+        <h2>Retries</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th scope="col">Failure</th><th scope="col">What happens</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Network error</th><td>The write stays queued and is retried with backoff (<code>retryDelay</code>, default exponential with jitter, capped at 15 s) — forever, it is the offline case.</td></tr>
+              <tr><th scope="row">5xx, 408, 429</th><td>Retried with backoff up to <code>maxRetries</code> (default 8, <code>DEFAULT_MAX_RETRIES</code>), then rejected: rolled back, reported on <code>rejected$</code>, and the writes behind it go out.</td></tr>
+              <tr><th scope="row">Other 4xx</th><td>Rejected at once: rolled back together with writes that depended on a row it was creating; reported on <code>rejected$</code>.</td></tr>
+              <tr><th scope="row">4xx on bootstrap or the reconnect probe</th><td>Access is gone: the engine stops, <code>lost$</code> fires, status <code>'error'</code> (needs <code>probe: true</code> for the stream).</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <pre><code>sync.rejected$.subscribe(({ write, error }) =&gt; toast(`Could not save: ${error.message}`));
+sync.status$.subscribe((s) =&gt; banner(s === 'offline' ? 'Offline — changes will be sent later' : ''));</code></pre>
+
+        <h2>Storage errors</h2>
+        <p>A save that throws or rejects (quota exceeded, Safari private mode, a blocked IndexedDB) is reported on <code>storageError$</code>, not swallowed.
+          The queue then lives in memory only until a later save succeeds — a reload now would lose it, so tell the person.</p>
+        <pre><code>sync.storageError$.subscribe(() =&gt; banner('This browser is not keeping offline changes. Stay on the page until they are sent.'));
+// or handle it in the storage itself:
+localStorageSync('todos', { owner, onError: (e) =&gt; report(e) });</code></pre>
+
+        <h2>The rest of the package</h2>
+        <ul>
+          <li><strong>Store</strong>: Redux-style on RxJS, effects as <code>(actions$, state$) =&gt; actions$</code>, memoized <code>select</code>, <code>createSelector</code>.</li>
+          <li><strong>Tables</strong>: immutable <code>id → row</code> maps (<code>putOne</code>, <code>patchOne</code>, <code>removeOne</code>), so reference equality drives memoization.</li>
+          <li><strong>Query</strong>: <code>filterBy</code>, <code>sortBy</code>, <code>groupBy</code>, fuzzy <code>search</code>, <code>sortOrderBetween</code> for drag and drop.</li>
+          <li><strong>Router</strong>: <code>createRouter({ item: '/lists/:list/items/:id' })</code>, and <code>UiRouter</code> with <code>route$</code> on the History API.</li>
+          <li><strong>OT</strong>: plain-text operational transformation (<code>transform</code>, <code>compose</code>, <code>invert</code>, <code>OtClient</code>), the counterpart of modx-core’s <code>ot.h</code>.</li>
+        </ul>
+        <p>In the UI, bind any of these streams to an element with <code>ObserveController</code> — the UI package does not depend on rxjs.</p>
+      </article>
+    </doc-shell>
+  </body>
+</html>

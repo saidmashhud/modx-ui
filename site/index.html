@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>modx-ui · web components for live, offline-capable apps</title>
+    <meta name="description" content="mx-* web components on Lit 3, design tokens with light and dark themes, and an RxJS store with a sync engine for offline-capable apps." />
+    <script type="module" src="./src/main.ts"></script>
+  </head>
+  <body>
+    <doc-shell page="index">
+      <article class="prose">
+        <section class="intro">
+          <div>
+            <p class="eyebrow">Lit 3 · TypeScript · MIT</p>
+            <h1>Web components for apps that keep working offline.</h1>
+            <p class="lead">Twenty-five <code>mx-*</code> elements, design tokens with light and dark themes, and an RxJS store whose
+              sync engine queues writes while the network is gone and sends each one exactly once when it is back.</p>
+            <div class="actions">
+              <mx-button variant="primary" size="lg" id="go-start">Get started</mx-button>
+              <mx-button size="lg" variant="ghost" icon-end="arrow-up-right" id="go-gh">Source</mx-button>
+            </div>
+            <pre class="install snippet"><code>npm install @saidmashhud/modx-ui @saidmashhud/modx-tokens lit</code></pre>
+          </div>
+
+          <div class="specimen" aria-label="An issue editor built from the kit (live)" role="group">
+            <mx-illustration scene="stack"></mx-illustration>
+            <div class="row">
+              <mx-status-icon status="in_progress"></mx-status-icon><span class="id">ENG-142</span>
+              <mx-chip color="#4743ff">Mobile</mx-chip>
+            </div>
+            <p class="title">Offline queue survives a sign-out</p>
+            <div class="grid2">
+              <mx-select id="sp-status" label="Status" value="doing" block></mx-select>
+              <mx-select id="sp-owner" label="Assignee" value="Ada Lovelace" block></mx-select>
+              <mx-date-picker label="Due" value="2026-12-04" block></mx-date-picker>
+              <mx-select id="sp-prio" label="Priority" value="2" block></mx-select>
+            </div>
+            <mx-switch checked>Notify watchers</mx-switch>
+            <div class="foot">
+              <span class="row">
+                <mx-tooltip content="Copy link" shortcut="⌘ ⇧ ,"><mx-button variant="ghost" icon="link" icon-only label="Copy link"></mx-button></mx-tooltip>
+                <mx-tooltip content="Archive" shortcut="E"><mx-button variant="ghost" icon="inbox" icon-only label="Archive"></mx-button></mx-tooltip>
+              </span>
+              <mx-button variant="primary" id="sp-save">Save</mx-button>
+            </div>
+          </div>
+        </section>
+
+        <div class="facts">
+          <mx-stat label="Elements" size="lg">25<span slot="hint">form-associated where it matters</span></mx-stat>
+          <mx-stat label="Engines tested" size="lg" divided>3<span slot="hint">Chromium, Firefox, WebKit</span></mx-stat>
+          <mx-stat label="Themes" size="lg" divided>2+<span slot="hint">dark, light, auto, per section</span></mx-stat>
+          <mx-stat label="Runtime dependency" size="lg" divided>1<span slot="hint">lit (rxjs for the store)</span></mx-stat>
+        </div>
+
+        <h2>Three packages</h2>
+        <div class="table-wrap">
+          <table class="packages">
+            <thead><tr><th scope="col">Package</th><th scope="col">What it is</th></tr></thead>
+            <tbody>
+              <tr><th scope="row"><code>@saidmashhud/modx-ui</code></th><td>The <code>mx-*</code> elements: buttons, fields, pickers, overlays, navigation, display, a safe Markdown renderer. Ships <code>custom-elements.json</code>.</td></tr>
+              <tr><th scope="row"><code>@saidmashhud/modx-tokens</code></th><td>CSS custom properties: a gray scale, one indigo accent, status colours, type, spacing, radii, motion; <code>data-theme</code> for dark, light and auto.</td></tr>
+              <tr><th scope="row"><code>@saidmashhud/modx-store</code></th><td>Store and selectors on RxJS, immutable tables, <code>SyncEngine</code> (bootstrap, SSE, optimistic writes, offline queue), query helpers, a router, OT.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2>What it is careful about</h2>
+        <ul>
+          <li><strong>Forms.</strong> Inputs, selects, date pickers, switches and buttons are form-associated: they submit, validate and reset inside a plain <code>&lt;form&gt;</code>. <a href="forms.html">Forms</a></li>
+          <li><strong>Keyboard and screen readers.</strong> Every element is checked with axe-core in both themes, in three browser engines.</li>
+          <li><strong>Right to left.</strong> Logical CSS throughout; overlays, arrow keys and directional icons follow the nearest <code>dir</code>. <a href="i18n.html">i18n and RTL</a></li>
+          <li><strong>Phones.</strong> Menus become bottom sheets, dialogs go full screen, touch targets grow to 44 px, the keyboard is tracked.</li>
+          <li><strong>Lost answers.</strong> Every write carries an idempotency key that survives reloads, so a retry is never applied twice. <a href="store.html">Store and SyncEngine</a></li>
+        </ul>
+      </article>
+    </doc-shell>
+    <script type="module">
+      const $ = (s) => document.querySelector(s);
+      $('#sp-status').options = [{ value: 'todo', label: 'Todo' }, { value: 'doing', label: 'In progress' }, { value: 'review', label: 'In review' }, { value: 'done', label: 'Done' }];
+      $('#sp-owner').options = ['Ada Lovelace', 'Alan Turing', 'Grace Hopper'].map((n) => ({ value: n, label: n, icon: 'user' }));
+      $('#sp-prio').options = [{ value: '1', label: 'Urgent' }, { value: '2', label: 'High' }, { value: '3', label: 'Medium' }, { value: '4', label: 'Low' }];
+      $('#go-start').addEventListener('click', () => { location.href = 'start.html'; });
+      $('#go-gh').addEventListener('click', () => { location.href = 'https://github.com/saidmashhud/modx-ui'; });
+    </script>
+  </body>
+</html>
