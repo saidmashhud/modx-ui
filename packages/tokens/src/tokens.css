@@ -151,6 +151,38 @@
   --mx-warning: var(--mx-orange-500);
 }
 
+/* data-theme="dark" on a section of a light page (the root is dark by default): the dark semantic layer again.
+ * Same values as the :root block above (test/contrast.test.ts keeps them equal). */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --mx-bg: var(--mx-gray-950);
+  --mx-bg-sunken: var(--mx-gray-1000);
+  --mx-surface: var(--mx-gray-900);
+  --mx-surface-raised: var(--mx-gray-850);
+  --mx-surface-overlay: var(--mx-gray-800);
+  --mx-surface-hover: rgba(255, 255, 255, 0.045);
+  --mx-surface-active: rgba(255, 255, 255, 0.075);
+  --mx-surface-selected: rgba(71, 67, 255, 0.16);
+  --mx-border: rgba(255, 255, 255, 0.08);
+  --mx-border-strong: rgba(255, 255, 255, 0.14);
+  --mx-text: var(--mx-gray-50);
+  --mx-text-secondary: var(--mx-gray-300);
+  --mx-text-muted: var(--mx-gray-400);
+  --mx-text-faint: var(--mx-gray-500);
+  --mx-accent: var(--mx-indigo-500);
+  --mx-accent-hover: var(--mx-indigo-400);
+  --mx-accent-pressed: var(--mx-indigo-700);
+  --mx-accent-text: var(--mx-indigo-200);
+  --mx-on-accent: var(--mx-gray-0);
+  --mx-focus-ring: 0 0 0 2px var(--mx-bg), 0 0 0 4px var(--mx-indigo-400);
+  --mx-shadow-popover: 0 0 0 1px var(--mx-border-strong), 0 12px 32px rgba(0, 0, 0, 0.45);
+  --mx-shadow-dialog: 0 0 0 1px var(--mx-border-strong), 0 24px 64px rgba(0, 0, 0, 0.55);
+  --mx-backdrop: rgba(10, 10, 12, 0.6);
+  --mx-danger: var(--mx-red-500);
+  --mx-success: var(--mx-green-500);
+  --mx-warning: var(--mx-orange-500);
+}
+
 :root[data-theme="light"],
 [data-theme="light"] {
   /* also scopes a single section (a page can alternate light and dark surfaces) */

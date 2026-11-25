@@ -46,3 +46,11 @@ describe('data-theme="auto"', () => {
     expect(auto).toEqual(lightOnly);
   });
 });
+
+describe('data-theme="dark" on a section', () => {
+  it('re-declares the dark semantic layer exactly as :root has it', () => {
+    const dark = block(/\n\[data-theme="dark"\]\s*/);
+    expect(Object.keys(dark).length).toBeGreaterThan(20);
+    for (const [k, v] of Object.entries(dark)) expect(v, k).toBe(root[k]);
+  });
+});
